@@ -1,5 +1,10 @@
 # 0.0.2
 
+## [Fixed]
+- Level elevation ranges no longer overlap at boundaries: each floor above ground now starts at `i * FLOOR_HEIGHT + 1` (e.g., 0–10, 11–20, 21–30) instead of sharing the same value with the floor below.
+
+
+
 ## [Added]
 - Scenes directory sidebar button "DA Level Importer" injected below the search bar via the `renderSceneDirectory` hook for quick one-click access to `DA.Importer()`.
 - Tabbed importer dialog: "Scene Defaults" and "Doors" tabs for organized settings.

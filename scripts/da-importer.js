@@ -179,7 +179,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   const levels = floors.map((f, i) => ({
     _id: foundry.utils.randomID(),
     name: `Floor ${i}`,
-    elevation: { bottom: i * FLOOR_HEIGHT, top: (i + 1) * FLOOR_HEIGHT },
+    elevation: { bottom: i === 0 ? 0 : i * FLOOR_HEIGHT + 1, top: (i + 1) * FLOOR_HEIGHT },
     background: {
       src: f.jpg,
       color: backgroundColor,
