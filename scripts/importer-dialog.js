@@ -325,13 +325,21 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
       // Render the button label as the comma-separated list of selected level
       // indices (the field number, not its name) so multi-selection stays legible.
+      // Label shows the single selected level number, or a "Many" marker when
+      // multiple are selected (the full list stays available via the hover tooltip).
       const updateBtn = () => {
         const indices = [...dropdown.querySelectorAll("input:checked")]
           .map(cb => cb.dataset.levelIndex);
-        const list = indices.join(", ");
-        btn.textContent = indices.length === 0 ? "— ▾" : `${list} ▾`;
-        // Full list as a tooltip so it stays accessible even when wrapped/clipped.
-        btn.title = indices.length === 0 ? "" : list;
+        if (indices.length === 0) {
+          btn.textContent = "— ▾";
+          btn.title = "";
+        } else if (indices.length === 1) {
+          btn.textContent = `${indices[0]} ▾`;
+          btn.title = indices[0];
+        } else {
+          btn.textContent = "Many ▾";
+          btn.title = indices.join(", ");
+        }
       };
       updateBtn();
       dropdown.addEventListener("change", updateBtn);
