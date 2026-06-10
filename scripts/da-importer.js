@@ -109,7 +109,7 @@ async function _copyImage(srcUrl, destFolder, kebabStem, ext) {
  *   Per-floor overrides for name, elevation, roof behavior, and explicit visible-level indices.
  * @returns {Promise<Scene|null>}                        The created Scene, or null on abort.
  */
-export async function importFolder({ source, path, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [] }) {
+export async function importFolder({ source, path, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
   const FilePicker = foundry.applications.apps.FilePicker.implementation;
 
   let listing;
@@ -265,7 +265,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
       dark: { hue: 0, intensity: 0, luminosity: -0.25, saturation: 0, shadows: 0 }
     },
     levels,
-    initialLevel: levels[0]._id,
+    initialLevel: (levels[initialLevelIndex] ?? levels[0])._id,
     walls,
     lights
   };

@@ -225,6 +225,29 @@
   outline-offset: 2px;
 }
 
+/* ── Initial level toggle ────────────────────────────────────── */
+#da-importer .da-initial-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-light-6, #888);
+  text-align: center;
+  transition: color 120ms ease, transform 120ms ease;
+}
+
+#da-importer .da-initial-btn:hover {
+  color: var(--color-text-light-primary, #ccc);
+}
+
+#da-importer .da-initial-btn--active {
+  color: #f5a623;
+}
+
 /* ── Levels tab ──────────────────────────────────────────────── */
 #da-importer .da-levels-placeholder {
   margin: 0.25rem 0;
@@ -240,7 +263,7 @@
 #da-importer .da-levels-header,
 #da-importer .da-level-row {
   display: grid;
-  grid-template-columns: 1.5rem 2.5rem 1fr 4rem 4rem 2.5rem 3.5rem;
+  grid-template-columns: 1.5rem 2.5rem 1fr 4rem 4rem 2.5rem 2.5rem 3.5rem;
   gap: 0.4rem;
   align-items: center;
 }

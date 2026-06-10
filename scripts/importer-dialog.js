@@ -10,6 +10,8 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
   _visDropdowns = [];
   /** @type {Map<string, HTMLInputElement>} Keyed by "levelIndex,otherIndex" for fast lookup at import time. */
   _visCheckboxes = new Map();
+  /** Zero-based index of the level shown on scene load. Defaults to the first level. */
+  _initialLevelIndex = 0;
   static DEFAULT_OPTIONS = {
     id: "da-importer",
     tag: "form",
@@ -206,7 +208,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     // Header row
     const header = document.createElement("div");
     header.className = "da-levels-header";
-    for (const label of ["#", "", "Name", "Bottom", "Top", "Roof", "Visible"]) {
+    for (const label of ["#", "", "Name", "Bottom", "Top", "Roof", "Start", "Visible"]) {
       const span = document.createElement("span");
       span.textContent = label;
       header.appendChild(span);
@@ -286,9 +288,33 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       roofTrack.appendChild(roofThumb);
       roofLabel.append(roofCheckbox, roofTrack);
 
-      row.append(indexBadge, thumb, nameInput, bottomInput, topInput, roofLabel);
+      // Initial level toggle — radio-style: only one row may be active at a time.
+      const initBtn = document.createElement("button");
+      initBtn.type = "button";
+      initBtn.className = "da-initial-btn";
+      initBtn.dataset.levelIndex = String(i);
+      initBtn.title = "Set as initial level (shown on scene load)";
+      const isInitial = i === this._initialLevelIndex;
+      initBtn.textContent = isInitial ? "★" : "☆";
+      if (isInitial) initBtn.classList.add("da-initial-btn--active");
+
+      row.append(indexBadge, thumb, nameInput, bottomInput, topInput, roofLabel, initBtn);
       list.appendChild(row);
       rowData.push({ row, nameInput, index: i });
+    }
+
+    // Wire initial-level toggles — clicking one star deactivates all others.
+    const allInitBtns = [...list.querySelectorAll(".da-initial-btn")];
+    for (const btn of allInitBtns) {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.levelIndex, 10);
+        this._initialLevelIndex = idx;
+        for (const b of allInitBtns) {
+          const active = parseInt(b.dataset.levelIndex, 10) === idx;
+          b.textContent = active ? "★" : "☆";
+          b.classList.toggle("da-initial-btn--active", active);
+        }
+      });
     }
 
     // Second pass — attach a Visible Levels dropdown to each row.
@@ -413,7 +439,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         .filter(j => j !== null)
     }));
 
-    const scene = await importFolder({ source, path: folder, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides });
+    const scene = await importFolder({ source, path: folder, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides, initialLevelIndex: this._initialLevelIndex });
     if (scene) this.close();
   }
 }

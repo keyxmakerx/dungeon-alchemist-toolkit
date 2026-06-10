@@ -1,6 +1,9 @@
 # 0.0.3
 
 ## [Added]
+- **Initial Level toggle** in the Levels tab: each row now has a star button (`★`/`☆`) in the new "Start" column. Only one level can be marked as initial at a time — clicking a star deactivates all others. The selected level is written to `initialLevel` on the created scene, controlling which floor is shown on first load. Defaults to level 0.
+
+## [Added]
 - **Visible Levels** column in the Levels tab: each level row now has a compact dropdown button (`— ▾` / `N ▾`) listing all other levels as checkboxes. Any levels checked will be included in that level's `visibility.levels` array on import, controlling which other floors are simultaneously visible when that level is active.
 - Visible Levels and Is Roof work together: if both are configured, their results are merged (deduplicated) into a single `visibility.levels` array.
 - **Levels tab** in the importer dialog: after selecting a folder, a new "Levels" tab is populated with one row per detected floor — thumbnail, editable name, and editable bottom/top elevation inputs.
