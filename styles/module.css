@@ -1,7 +1,11 @@
 /* ── Scenes directory sidebar button ─────────────────────────── */
-.da-importer-sidebar-btn {
+.da-importer-sidebar-btn,
+.da-region-sidebar-btn {
   width: calc(100% - 16px);
   margin: 0px 8px 0;
+}
+.da-region-sidebar-btn {
+  margin-top: 4px;
 }
 
 /* Solid background — prevents the window content from being see-through */

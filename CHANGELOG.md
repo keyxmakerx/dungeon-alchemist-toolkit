@@ -1,3 +1,8 @@
+# 0.0.12
+
+## [Added]
+- A **"DA Add Stairs / Elevator"** button is now injected into the Scenes sidebar next to the importer button, so the multi-level region tool is discoverable without typing `DA.AddRegion()`. Open (view) the imported scene, then click it and follow the dialog to place a stair/elevator region.
+
 # 0.0.11
 
 ## [Added]
