@@ -85,6 +85,9 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         } catch (_err) {
           this._floorPairs = [];
         }
+        // Re-selecting a folder with fewer floors must not leave the initial-level
+        // index pointing past the end (the star would then highlight no row).
+        this._initialLevelIndex = Math.min(this._initialLevelIndex, Math.max(0, this._floorPairs.length - 1));
         this._populateLevelsTab();
       }
     });

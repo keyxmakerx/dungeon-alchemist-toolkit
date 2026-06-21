@@ -24,7 +24,11 @@ export function getSceneLevels(scene) {
   const collection = scene.levels;
   // v14 may expose either a Collection (with .contents) or a plain array
   // depending on whether the scene was hydrated as a Document.
-  const levels = collection?.contents ? collection.contents.slice() : [...(collection ?? [])];
+  // Prefer the Collection's .contents; the array fallback reads .values() so a
+  // bare Map yields level objects, not [key, value] entry tuples.
+  const levels = collection?.contents
+    ? collection.contents.slice()
+    : Array.from(collection?.values?.() ?? collection ?? []);
   levels.sort((a, b) => (a.elevation?.bottom ?? 0) - (b.elevation?.bottom ?? 0));
   return levels;
 }

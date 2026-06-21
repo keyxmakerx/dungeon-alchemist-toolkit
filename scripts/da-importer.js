@@ -28,6 +28,13 @@ const VIDEO_EXTS = ["webm", "mp4", "m4v"];
 const MEDIA_EXTS = [...IMAGE_EXTS, ...VIDEO_EXTS];
 
 /**
+ * Preference order when a single floor ships more than one media file (e.g. a
+ * `.jpg` and a `.webp`, or a still image alongside an animated video). Earlier =
+ * preferred: animated video wins outright, then the most efficient still formats.
+ */
+const MEDIA_PRIORITY = ["webm", "mp4", "m4v", "webp", "png", "jpeg", "jpg"];
+
+/**
  * Whether a path points to a video Foundry renders as an animated texture
  * (rather than a static image). Lets the dialog choose a <video> over an <img>
  * for a floor's thumbnail.
@@ -224,8 +231,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
       fog: { src: null, tint: "#ffffff" },
       textures: {
         anchorX: 0.5, anchorY: 0.5,
-        offsetX: 0, offsetY: 0,
-        fit: "fill", scaleX: 1, scaleY: 1, rotation: 0
+        fit: "fill", scaleX: 1, scaleY: 1
       },
       visibility: { levels: [] },
       sort: i,
@@ -251,9 +257,11 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   const lights = [];
   floors.forEach((f, i) => {
     const levelId = levels[i]._id;
-    const bottom = i * FLOOR_HEIGHT;
+    // Stamp lights at the level's resolved bottom (which honors per-level
+    // overrides), not a recomputed i * FLOOR_HEIGHT that ignores them.
+    const elevation = levels[i].elevation.bottom;
     for (const w of (f.data.walls ?? [])) walls.push(_mapWall(w, levelId, doorTexture, doorSound));
-    for (const l of (f.data.lights ?? [])) lights.push(_mapLight(l, levelId, bottom));
+    for (const l of (f.data.lights ?? [])) lights.push(_mapLight(l, levelId, elevation));
   });
   console.log(`[DA Importer] built ${levels.length} levels, ${walls.length} walls, ${lights.length} lights`);
 
@@ -337,17 +345,26 @@ export function collectFloorPairs(files) {
     const entry = byStem.get(stem);
     if (ext === "json") {
       entry.json = f;
-    } else if (!entry.img || (VIDEO_EXTS.includes(ext) && !VIDEO_EXTS.includes(entry.imgExt))) {
-      // One media file per floor. If a floor ships both a static image and a
-      // video, the video wins so the animated background takes precedence.
-      entry.img = f;
-      entry.imgExt = ext;
+    } else {
+      // One media file per floor. When several are present, keep the
+      // highest-priority extension (lower MEDIA_PRIORITY index) so the choice is
+      // deterministic regardless of the order FilePicker returns files in.
+      const rank = MEDIA_PRIORITY.indexOf(ext);
+      const curRank = entry.imgExt ? MEDIA_PRIORITY.indexOf(entry.imgExt) : Infinity;
+      if (rank < curRank) {
+        entry.img = f;
+        entry.imgExt = ext;
+      }
     }
   }
 
   const pairs = [];
+  const orphans = [];
   for (const [stem, entry] of byStem) {
-    if (!entry.json || !entry.img) continue;
+    if (!entry.json || !entry.img) {
+      orphans.push(`${stem} — ${entry.json ? "JSON with no image/video" : "image/video with no JSON"}`);
+      continue;
+    }
     const m = stem.match(FLOOR_RE);
     pairs.push({
       stem,
@@ -355,6 +372,9 @@ export function collectFloorPairs(files) {
       json: entry.json,
       jpg: entry.img
     });
+  }
+  if (orphans.length) {
+    console.warn(`[DA Importer] skipped ${orphans.length} unpaired file(s):`, orphans);
   }
   pairs.sort((a, b) => a.index - b.index || a.stem.localeCompare(b.stem));
   return pairs;
@@ -372,18 +392,31 @@ function _commonStem(pairs) {
 }
 
 /**
- * Translate a DA 0/1/2 flag into the v14 wall enum.
- * DA uses a compact {0:none, 1:normal, 2:limited} scheme; v14 `WALL_*` enums
- * use {NONE:0, LIMITED:10, NORMAL:20, ...}. We clamp to the three values
- * DA actually emits.
+ * Translate a DA 0/1/2 restriction flag into a v14 wall SENSE enum
+ * (sight/sound/light). DA uses a compact {0:none, 1:normal, 2:limited} scheme;
+ * v14 `WALL_SENSE_TYPES` use {NONE:0, LIMITED:10, NORMAL:20, ...}.
  *
  * @param {number} v
  * @returns {number}
  */
-function _wallEnum(v) {
+function _senseEnum(v) {
   if (v === 2) return 10;
   if (v === 1) return 20;
   return 0;
+}
+
+/**
+ * Translate a DA 0/1/2 flag into a v14 wall MOVEMENT enum. Movement is binary
+ * in v14 — `WALL_MOVEMENT_TYPES` only defines {NONE:0, NORMAL:20} (there is no
+ * LIMITED for movement), so any DA "blocking" value (normal or limited) maps to
+ * NORMAL and 0 stays NONE. Routing movement through the sense mapping would emit
+ * an invalid value of 10.
+ *
+ * @param {number} v
+ * @returns {number}
+ */
+function _moveEnum(v) {
+  return v ? 20 : 0;
 }
 
 /**
@@ -401,9 +434,9 @@ function _wallEnum(v) {
 function _mapWall(daWall, levelId, doorTexture = "", doorSound = "") {
   const wallDoc = {
     c: daWall.c,
-    move:  _wallEnum(daWall.move ?? 1),
-    sight: _wallEnum(daWall.sense ?? 1),
-    sound: _wallEnum(daWall.sound ?? 1),
+    move:  _moveEnum(daWall.move ?? 1),
+    sight: _senseEnum(daWall.sense ?? 1),
+    sound: _senseEnum(daWall.sound ?? 1),
     door:  daWall.door ?? 0,
     ds: 0,
     levels: [levelId]
