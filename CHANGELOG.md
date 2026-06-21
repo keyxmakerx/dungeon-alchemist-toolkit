@@ -1,3 +1,9 @@
+# 0.0.10
+
+## [Fixed]
+- The **ⓘ info icon** now opens a readable help panel when clicked (the old hover tooltip didn't appear — Foundry suppresses plain `title` tooltips). The panel explains Roof / Start / Visible in plain language and makes clear that **most maps need none of them** and that roof placement is automatic.
+- All Levels-tab tooltips (column headers, drag handle, thumbnail filename/size, roof, star) now use Foundry's tooltip system, so they reliably show on hover.
+
 # 0.0.9
 
 ## [Added]

@@ -277,6 +277,13 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       });
     }
 
+    // Info (ⓘ) button — toggles a readable help panel explaining the advanced columns.
+    const advHelpBtn = this.element.querySelector(".da-info-icon");
+    const advHelp = this.element.querySelector(".da-adv-help");
+    if (advHelpBtn && advHelp) {
+      advHelpBtn.addEventListener("click", () => { advHelp.hidden = !advHelp.hidden; });
+    }
+
     // Restore levels tab rows after any re-render.
     this._populateLevelsTab();
   }
@@ -374,10 +381,10 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     const mb = (bytes / (1024 * 1024)).toFixed(1);
     if (bytes >= MEDIA_SIZE_WARN_BYTES) {
       thumb.classList.add("da-thumb-oversize");
-      thumb.title = `${pair.stem} — ${mb} MB (exceeds Foundry's ~50 MB recommendation)`;
+      thumb.dataset.tooltip = `${pair.stem} — ${mb} MB (exceeds Foundry's ~50 MB recommendation)`;
     } else {
       thumb.classList.remove("da-thumb-oversize");
-      thumb.title = `${pair.stem} — ${mb} MB`;
+      thumb.dataset.tooltip = `${pair.stem} — ${mb} MB`;
     }
   }
 
@@ -484,7 +491,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     for (const col of headerCols) {
       const span = document.createElement("span");
       span.textContent = col.label;
-      span.title = col.title;
+      span.dataset.tooltip = col.title;
       if (col.adv) span.classList.add("da-adv-col");
       header.appendChild(span);
     }
@@ -522,7 +529,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       indexBadge.className = "da-level-index";
       indexBadge.textContent = String(i);
       indexBadge.draggable = true;
-      indexBadge.title = "Drag to reorder this floor";
+      indexBadge.dataset.tooltip = "Drag to reorder this floor";
       indexBadge.addEventListener("dragstart", (e) => {
         this._dragFromIndex = i;
         e.dataTransfer.effectAllowed = "move";
@@ -533,7 +540,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
       const thumb = _buildThumbEl(pair.media, "da-level-thumb", { animate: false });
       if (thumb.tagName === "VIDEO") this._thumbVideos.push(thumb);
-      thumb.title = pair.stem;   // original filename (size is appended once probed)
+      thumb.dataset.tooltip = pair.stem;   // original filename (size is appended once probed)
       // Re-apply a previously probed size badge (rows are rebuilt on every render).
       if (this._mediaSizes.has(pair.uid)) this._applySizeBadge(pair, this._mediaSizes.get(pair.uid), thumb);
 
@@ -578,7 +585,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       // Roof toggle
       const roofLabel = document.createElement("label");
       roofLabel.className = "da-toggle da-adv-col";
-      roofLabel.title = "When enabled, this level only renders when the level directly below it is active (roof behavior).";
+      roofLabel.dataset.tooltip = "Tick only if this floor is a roof/ceiling over the floor below; it then shows only when that lower floor is active. Most maps need this off.";
 
       const roofCheckbox = document.createElement("input");
       roofCheckbox.type = "checkbox";
@@ -597,7 +604,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       initBtn.type = "button";
       initBtn.className = "da-initial-btn da-adv-col";
       initBtn.dataset.uid = pair.uid;
-      initBtn.title = "Set as initial level (shown on scene load)";
+      initBtn.dataset.tooltip = "Set as initial level (shown on scene load)";
       const isInitial = pair.uid === this._initialLevelUid;
       initBtn.textContent = isInitial ? "★" : "☆";
       if (isInitial) initBtn.classList.add("da-initial-btn--active");
@@ -664,13 +671,13 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
           .map(cb => cb.dataset.levelIndex);
         if (indices.length === 0) {
           btn.textContent = "— ▾";
-          btn.title = "";
+          btn.dataset.tooltip = "";
         } else if (indices.length === 1) {
           btn.textContent = `${indices[0]} ▾`;
-          btn.title = indices[0];
+          btn.dataset.tooltip = `Also shows floor ${indices[0]}`;
         } else {
           btn.textContent = "Many ▾";
-          btn.title = indices.join(", ");
+          btn.dataset.tooltip = `Also shows floors ${indices.join(", ")}`;
         }
       };
       updateBtn();

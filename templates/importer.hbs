@@ -160,7 +160,15 @@
       <label class="da-adv-toggle">
         <input type="checkbox" name="showAdvanced" /> Show advanced columns
       </label>
-      <span class="da-info-icon" tabindex="0" title="Advanced columns — most maps don't need these:&#10;• Roof: this level acts as a ceiling, shown only when the floor below is active (roofs, overhangs).&#10;• Start: which floor players see when the scene first opens.&#10;• Visible: keep other floors visible at the same time (open atriums, balconies, mezzanines).">&#9432;</span>
+      <button type="button" class="da-info-icon" aria-label="What do the advanced columns do?">&#9432;</button>
+    </div>
+    <div class="da-adv-help" hidden>
+      <p><strong>Advanced columns — most maps don't need any of these.</strong></p>
+      <ul>
+        <li><strong>Roof</strong> — tick this <em>only</em> on a floor that is actually a roof/ceiling sitting on top of the floor below. It then shows only while you're on that lower floor, and where it sits is worked out automatically (you set no numbers). <em>Not sure if you have a roof floor? Then you don't — leave Roof off on every row.</em></li>
+        <li><strong>Start (★)</strong> — which floor players see first when the scene opens. Defaults to the bottom floor.</li>
+        <li><strong>Visible</strong> — keep other floors on-screen at the same time (open atriums, balconies, glass floors).</li>
+      </ul>
     </div>
 
     <p class="hint da-levels-placeholder">Select a folder above to see level rows.</p>
