@@ -1,3 +1,8 @@
+# 0.0.8
+
+## [Added]
+- The Levels tab now defaults to a **Basic view** (`#`, preview, Name, Bottom, Top). A **"Show advanced columns"** toggle reveals Roof / Start / Visible, with an ⓘ icon explaining when each is useful. Advanced settings stay in place even while hidden, so nothing is lost.
+
 # 0.0.7
 
 ## [Added]

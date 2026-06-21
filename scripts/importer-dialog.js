@@ -60,6 +60,8 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
   _sizeProbeGen = 0;
   /** AbortController for the in-flight size-probe batch (aborted on re-browse / close). */
   _sizeAbort = null;
+  /** Levels-tab "Show advanced columns" state (Roof / Start / Visible); persisted across re-renders. */
+  _advancedView = false;
   static DEFAULT_OPTIONS = {
     id: "da-importer",
     tag: "form",
@@ -258,6 +260,19 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       });
     }
 
+    // Basic / Advanced columns toggle for the Levels tab. The advanced cells stay
+    // in the DOM when hidden (CSS display:none), so import still reads them.
+    const advToggle = this.element.querySelector("input[name='showAdvanced']");
+    const levelsList = this.element.querySelector(".da-levels-list");
+    if (advToggle && levelsList) {
+      advToggle.checked = this._advancedView;
+      levelsList.classList.toggle("da-levels--advanced", this._advancedView);
+      advToggle.addEventListener("change", () => {
+        this._advancedView = advToggle.checked;
+        levelsList.classList.toggle("da-levels--advanced", this._advancedView);
+      });
+    }
+
     // Restore levels tab rows after any re-render.
     this._populateLevelsTab();
   }
@@ -399,14 +414,15 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       { label: "Name",    title: "Level name — pre-filled from the original filename, editable" },
       { label: "Bottom",  title: "Lower elevation of this floor, in grid units" },
       { label: "Top",     title: "Upper elevation of this floor, in grid units" },
-      { label: "Roof",    title: "Show this level only when the floor directly below is active (ceilings/roofs)" },
-      { label: "Start",   title: "Which floor is shown when the scene first loads" },
-      { label: "Visible", title: "Which other floors stay visible while this one is active" }
+      { label: "Roof",    title: "Show this level only when the floor directly below is active (ceilings/roofs)", adv: true },
+      { label: "Start",   title: "Which floor is shown when the scene first loads", adv: true },
+      { label: "Visible", title: "Which other floors stay visible while this one is active", adv: true }
     ];
     for (const col of headerCols) {
       const span = document.createElement("span");
       span.textContent = col.label;
       span.title = col.title;
+      if (col.adv) span.classList.add("da-adv-col");
       header.appendChild(span);
     }
     list.appendChild(header);
@@ -472,7 +488,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
       // Roof toggle
       const roofLabel = document.createElement("label");
-      roofLabel.className = "da-toggle";
+      roofLabel.className = "da-toggle da-adv-col";
       roofLabel.title = "When enabled, this level only renders when the level directly below it is active (roof behavior).";
 
       const roofCheckbox = document.createElement("input");
@@ -489,7 +505,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       // Initial level toggle — radio-style: only one row may be active at a time.
       const initBtn = document.createElement("button");
       initBtn.type = "button";
-      initBtn.className = "da-initial-btn";
+      initBtn.className = "da-initial-btn da-adv-col";
       initBtn.dataset.levelIndex = String(i);
       initBtn.title = "Set as initial level (shown on scene load)";
       const isInitial = i === this._initialLevelIndex;
@@ -522,7 +538,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       const { row } = rowData[i];
 
       const wrap = document.createElement("div");
-      wrap.className = "da-vis-wrap";
+      wrap.className = "da-vis-wrap da-adv-col";
 
       const btn = document.createElement("button");
       btn.type = "button";
