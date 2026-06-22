@@ -12,6 +12,70 @@ import { createLinkedStairs, linkExistingRegions, getPortalFlag } from "./portal
 import { getSceneLevels, getCurrentLevelId, pickCanvasRectangle } from "../region-adder.js";
 
 /**
+ * Small DialogV2 to choose the portal type / label / directionality before
+ * placing. Resolves to `{mode,label,twoWay}`, or null if cancelled.
+ */
+async function promptStairsOptions() {
+  const content = `
+  <div class="da-stairs-opts">
+    <div class="form-group">
+      <label>Type</label>
+      <select name="mode">
+        <option value="stairs" selected>Stairs — cross-level, confirm prompt</option>
+        <option value="teleport">Teleport — same map, confirm prompt</option>
+        <option value="trap">Trap — silent, hidden, one-way</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Label (shown to players)</label>
+      <input type="text" name="label" value="Stairs" />
+    </div>
+    <label class="da-stairs-opts-check">
+      <input type="checkbox" name="twoWay" checked /> Two-way (destination links back)
+    </label>
+  </div>`;
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: "New Stairs / Portal" },
+      content,
+      ok: {
+        label: "Place →",
+        icon: "fas fa-stairs",
+        callback: (_event, button) => {
+          const form = button?.form;
+          return {
+            mode: form?.elements?.mode?.value || "stairs",
+            label: form?.elements?.label?.value?.trim() || "Stairs",
+            twoWay: form?.elements?.twoWay?.checked ?? true
+          };
+        }
+      },
+      rejectClose: false
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Interactive create: ask for type/label/direction, then run the place-then-link
+ * flow. This is what the sidebar button and `DA.AddStairs()` (no args) call.
+ *
+ * @param {Scene} [scene=canvas.scene]
+ * @returns {Promise<void>}
+ */
+export async function addStairsInteractive(scene = canvas?.scene) {
+  if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
+  if (!getSceneLevels(scene).length) {
+    ui.notifications.warn("DA Stairs: this scene has no Levels — import or add levels first.");
+    return;
+  }
+  const opts = await promptStairsOptions();
+  if (!opts) { ui.notifications.info("DA Stairs: cancelled."); return; }
+  await startAddStairs(scene, opts);
+}
+
+/**
  * Place-then-link: two canvas placements (entrance, then exit on whatever level
  * is active at that moment) become a linked teleport pair. Same level on both =
  * a same-map teleport; different levels = stairs.

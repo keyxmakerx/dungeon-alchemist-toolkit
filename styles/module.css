@@ -562,3 +562,10 @@ body.da-region-picking canvas {
 .da-stairs-level { font-weight: 600; }
 .da-stairs-footer { margin-top: 0.6rem; gap: 0.4rem; }
 .da-stairs-empty { opacity: 0.85; }
+
+/* New-stairs options dialog */
+.da-stairs-opts .form-group { margin-bottom: 0.5rem; }
+.da-stairs-opts label { display: block; margin-bottom: 0.2rem; }
+.da-stairs-opts select,
+.da-stairs-opts input[type="text"] { width: 100%; }
+.da-stairs-opts-check { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.25rem; }

@@ -1,6 +1,6 @@
 import { DAImporterDialog } from "./importer-dialog.js";
 import { DARegionAdderDialog } from "./region-adder-dialog.js";
-import { startAddStairs, startLinkRegions } from "./portal/portal-wizard.js";
+import { startAddStairs, addStairsInteractive, startLinkRegions } from "./portal/portal-wizard.js";
 import { DAStairsManager } from "./portal/portal-manager.js";
 import { registerPortalOverlayHooks } from "./portal/portal-overlay.js";
 import { MODULE_ID, SETTING_IMPORTER_DEFAULTS } from "./constants.js";
@@ -17,8 +17,9 @@ Hooks.once("init", () => {
 
   game.modules.get(MODULE_ID).api = {
     Importer: () => new DAImporterDialog().render(true),
-    // New native-teleport stairs/portal flow (place entrance -> switch level -> place exit).
-    AddStairs: (opts) => startAddStairs(canvas?.scene, opts),
+    // New native-teleport stairs/portal flow. No args -> prompt for type/label first;
+    // explicit opts (e.g. {mode:"trap"}) skip the prompt.
+    AddStairs: (opts) => (opts ? startAddStairs(canvas?.scene, opts) : addStairsInteractive(canvas?.scene)),
     // Link two already-selected Regions into a teleport pair.
     LinkStairs: (opts) => startLinkRegions(canvas?.scene, opts),
     // Browse / find / edit / delete this scene's stairs/portals.

@@ -10,7 +10,7 @@ import {
   getScenePortals,
   deletePortalLink
 } from "./portal-core.js";
-import { startAddStairs } from "./portal-wizard.js";
+import { addStairsInteractive } from "./portal-wizard.js";
 import { getSceneLevels } from "../region-adder.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -135,7 +135,7 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async #onAdd() {
     await this.close();
-    startAddStairs();
+    addStairsInteractive();
   }
 
   static #onRefresh() {
