@@ -187,11 +187,11 @@ flowchart TD
    or `"data"`.
 2. Immediately calls `FilePicker.browse(source, path)` and feeds the file list into
    `collectFloorPairs` to populate `this._floorPairs` (`scripts/importer-dialog.js:104-105`).
-3. Clamps `_initialLevelIndex` to the new floor count so a re-selection with fewer floors can't
-   leave the star highlighting no row (`scripts/importer-dialog.js:111`), resets the size-probe
-   cache `_mediaSizes` (`:112`), calls `_populateLevelsTab()` to rebuild the Levels-tab rows
-   (`:113`), then kicks off the (fire-and-forget) media size probe `_probeMediaSizes(source)`
-   (`:114`) — see [Large-media size warning](#large-media-size-warning).
+3. Gives each floor a stable `uid`, resets `_levelState`, sets `_initialLevelUid` to the first
+   floor's uid (so a re-selection with fewer floors can't leave the star on a missing row), resets
+   the size-probe cache `_mediaSizes`, calls `_populateLevelsTab()` to rebuild the Levels-tab rows,
+   then kicks off the (fire-and-forget) media size probe `_probeMediaSizes(source)` — see
+   [Large-media size warning](#large-media-size-warning).
 
 So the **dialog browses the folder twice** in effect: once eagerly (to render per-level rows),
 and again inside `importFolder` at import time (`scripts/da-importer.js:149`) as the source of truth.
@@ -532,16 +532,20 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
 **Instance state** (`scripts/importer-dialog.js:43-62`):
 
-- `_floorPairs` — the pairs from the last folder browse (`:43-44`).
-- `_visDropdowns` — body-attached dropdown elements to clean up on rebuild/close (`:45-46`).
-- `_visCheckboxes` — `Map` keyed `"levelIndex,otherIndex"` for O(1) lookup at import time (`:47-48`).
+- `_floorPairs` — the pairs from the last folder browse.
 - `_thumbVideos` — the Levels-tab `<video>` thumbnails currently mounted; paused/released on
-  rebuild and close (`:49-50`).
-- `_visOutsideHandler` — the single tracked document-level "click outside to close" handler for the
-  Visible Levels dropdowns (`:51-52`).
-- `_initialLevelIndex` — zero-based initial level, default `0` (`:53-54`).
-- `_restoredDefaults` — guards the one-time restore of persisted selections on first render
-  (`:55-56`).
+  rebuild and close.
+- `_initialLevelUid` — stable uid of the level shown on scene load; `null` until a folder is browsed.
+- `_levelState` — `Map` keyed by floor uid holding each floor's editable `{name, bottom, top, isRoof}`
+  so edits survive row rebuilds and reordering.
+- `_dragFromIndex` — source row index during a drag-to-reorder; `null` when not dragging.
+- `_restoredDefaults` — guards the one-time restore of persisted selections on first render.
+- `_advancedView` — Levels-tab "Show advanced columns" (Roof / Start) state, persisted across
+  re-renders.
+
+> The standalone Visible-Levels dropdown is gone, so the former `_visDropdowns` / `_visCheckboxes` /
+> `_visOutsideHandler` body-dropdown machinery no longer exists. Cross-level visibility is now edited
+> in the native v14 Levels tab in Scene Config after import.
 - `_mediaSizes` — `Map<floorIndex, bytes>` of probed media sizes, re-applied to rows on each render
   (`:57-58`); see [Large-media size warning](#large-media-size-warning).
 - `_sizeProbeGen` — monotonic token so a stale size-probe batch can't patch rows after a newer
@@ -552,8 +556,8 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 **`DEFAULT_OPTIONS`** (`scripts/importer-dialog.js:63-82`):
 
 - `id: "da-importer"`, `tag: "form"`, `form.closeOnSubmit: false`.
-- `window.title`, `window.resizable: false`; `position.width: 620` (widened in v0.0.3 to fit the
-  Visible column — `CHANGELOG.md:48`), `height: "auto"`.
+- `window.title` (`"Dungeon Alchemist Toolkit"`), `window.resizable: false`; `position.width: 620`,
+  `height: "auto"`.
 - **`actions`** map (the ApplicationV2 click-delegation system; keyed by `data-action` in the
   template): `browse → #onBrowse`, `import → #onImport`, `previewSound → #onPreviewSound`
   (`:77-81`).
@@ -658,12 +662,14 @@ The oversize appearance is the `.da-level-thumb.da-thumb-oversize` rule — a 2 
 This method **fully rebuilds** the Levels list from `this._floorPairs`. It is called after a folder
 browse (`:113`) and after every render (`:262`).
 
-1. **Teardown** prior body dropdowns via `_teardownVisDropdowns()` (`:376` → `:270-275`) **and**
-   prior video thumbnails via `_teardownThumbVideos()` (`:377` → `:290-295`).
-2. **Placeholder vs list** (`:379-390`): with no pairs, the
-   `.da-levels-placeholder` ("Select a folder above…", `templates/importer.hbs:157`) is shown and
+1. **Teardown** prior video thumbnails via `_teardownThumbVideos()`. (There are no longer any
+   body-attached Visible-Levels dropdowns to tear down.)
+2. **Placeholder vs list**: with no pairs, the
+   `.da-levels-placeholder` ("Select a folder above…") is shown and
    the list cleared; otherwise the placeholder is hidden and the list rebuilt.
-3. **Header row** (`:393-400`): columns `# · "" · Name · Bottom · Top · Roof · Start · Visible`.
+3. **Header row** (`:464-483`): columns `# · "" · Name · Bottom · Top · Roof · Start`, where **Roof**
+   and **Start** are advanced columns shown only when "Show advanced columns" is on. There is no
+   longer a **Visible** column.
 4. **First pass — one `.da-level-row` per floor** (`:404-489`):
    - The row element gets a `data-level-index` attribute for the size-badge lookup (`:411`).
    - Index badge (`:413-415`).
@@ -678,41 +684,15 @@ browse (`:113`) and after every render (`:262`).
      (`:406-407`, `:446-458`).
    - **Roof toggle** `levelIsRoof[i]` — a styled checkbox with the roof-behavior tooltip
      (`:461-474`).
-   - **Initial-level star button** (`:477-484`) — `★`/`☆`, `da-initial-btn--active` when
-     `i === this._initialLevelIndex`.
-5. **Initial-level wiring** (`:492-503`): clicking any star sets `_initialLevelIndex` and resets all
+   - **Initial-level star button** (advanced **Start** column) — `★`/`☆`, active when the row's uid
+     equals `this._initialLevelUid`.
+5. **Initial-level wiring**: clicking any star sets `_initialLevelUid` (by floor uid) and resets all
    other stars — a radio-style, single-select toggle.
-6. **Second pass — Visible Levels dropdown per row** (`:508-586`): see below.
 
-#### The Visible Levels dropdowns (and why they're appended to `document.body`)
-
-Built in the second pass so that, by the time a dropdown is created, **all** rows (and their
-name inputs) exist and each dropdown can list *every other* level by name
-(`scripts/importer-dialog.js:508-535`):
-
-- Each row gets a `.da-vis-wrap` containing a `.da-vis-btn` and a `.da-vis-dropdown`.
-- The dropdown is `document.body.appendChild`'d and tracked in `_visDropdowns`
-  (`:521-522`).
-- For every other level `j`, a checkbox `levelVisibility[i][j]` is created, registered in
-  `_visCheckboxes` under key `` `${i},${j}` `` (`:524-535`), labeled with that level's name.
-- The button label (`updateBtn`, `:541-554`) shows `— ▾` for none, `N ▾` for a single selection,
-  and `Many ▾` (with a `title` listing all indices) for multiple.
-- Clicking the button (`:558-582`) closes all other dropdowns and drops any prior outside-click
-  handler via `_removeVisOutsideHandler()` (`:564`), positions this one using
-  `getBoundingClientRect()` + `position: fixed`, and installs a deferred outside-click handler — now
-  **tracked on the instance** as `_visOutsideHandler` (via `setTimeout(..., 0)` so the opening click
-  doesn't immediately close it; `:572-580`).
-
-**Why `document.body`:** the dropdown is `position: fixed` (`styles/module.css:308-319`).
-Foundry's ApplicationV2 window uses a CSS `transform` for positioning, and a `position: fixed`
-descendant of a transformed ancestor is positioned **relative to that transformed ancestor**, not
-the viewport — so the dropdown would land at the wrong screen coordinates. Re-parenting it to
-`document.body` (outside the window's transform) makes its fixed coordinates viewport-relative again
-(comments at `scripts/importer-dialog.js:372-373`, `:506-507`, and `styles/module.css:306-307`).
-The trade-off is manual lifecycle management: dropdowns are explicitly removed in
-`_teardownVisDropdowns()` (`:270-275`) — which also calls `_removeVisOutsideHandler()` (`:278-283`)
-to drop the single tracked outside-click listener — and the whole teardown runs again on `_onClose`
-(`:596-605`).
+> **Removed in v0.1.0:** the second-pass per-row **Visible Levels** dropdown (and its
+> `document.body`-attached, `position: fixed` machinery) no longer exists. Per-level cross-visibility
+> is configured natively in the v14 Levels tab in Scene Config after import, so the Levels tab now
+> carries only the basic columns plus the advanced **Roof**/**Start** toggles.
 
 #### Thumbnails: image-vs-video, paused vs animated (`_buildThumbEl`, `isVideoPath`)
 
@@ -740,14 +720,15 @@ box.
 
 ### Import handler & teardown
 
-- **`#onImport`** (`scripts/importer-dialog.js:607-653`): reads `folder`/`source` (warns if no
-  folder; `:608-613`), then **validates elevations** (see below; `:618-627`), reads
-  `backgroundColor`/`gridAlpha`/`copyImages`/`doorTexture`/`doorSound` (`:629-633`), **persists those
-  five via `_saveCurrentDefaults(...)`** (`:636`), then builds `levelOverrides` by reading each row's
-  inputs — `name`, `bottom`, `top`, `isRoof`, and `visibleLevels` (resolved from `_visCheckboxes`;
-  `:638-649`). It calls `importFolder(...)` with `initialLevelIndex: this._initialLevelIndex` (`:651`)
-  and closes on success (`:652`). Note the UI toggle is labelled **"Copy Media to World"**
-  (`templates/importer.hbs:47`) but the param/field is still named `copyImages`.
+- **`#onImport`** (`scripts/importer-dialog.js`): reads `folder`/`source` (warns if no
+  folder), then **validates elevations** (see below), reads
+  `backgroundColor`/`gridAlpha`/`copyImages`/`doorTexture`/`doorSound`, **persists those
+  five via `_saveCurrentDefaults(...)`**, then builds `levelOverrides` by reading each row's
+  inputs — `name`, `bottom`, `top`, and `isRoof` (`:676-681`). It resolves `initialLevelIndex` from
+  `_initialLevelUid` (`:683`) and calls `importFolder(...)` **inside a try/catch** so any unexpected
+  failure surfaces a toast instead of an unhandled rejection (`:688-694`), closing on success.
+  Note the UI toggle is labelled **"Copy Media to World"** but the param/field is still named
+  `copyImages`.
 - **Elevation validation (in `#onImport`)** (`scripts/importer-dialog.js:618-627`): before reading any
   other field, it scans every row's `levelBottom[i]`/`levelTop[i]`. A row is flagged only when **both**
   values parse to finite numbers **and** `bottom >= top` (`:622`) — a blank field is left to the
@@ -887,7 +868,8 @@ sequenceDiagram
   selection (`scripts/da-importer.js:309`) and consulted as a fallback by `getCurrentLevelId`
   (`scripts/region-adder.js:55`).
 - **`visibility.levels`** on a Level — controls which other floors are co-visible when that level is
-  active; populated by the roof + Visible-Levels merge (`scripts/da-importer.js:254-263`).
+  active; the importer populates it only from the roof shortcut (`scripts/da-importer.js:254-259`),
+  leaving finer cross-level visibility to the native v14 Levels tab.
 - **`game.settings.register` / `get` / `set`** — a **client-scoped, `config:false`** setting
   (`SETTING_IMPORTER_DEFAULTS`) registered on `init` (`scripts/main.js:8-13`) and read/written by the
   dialog to remember last-used selections across opens (`scripts/importer-dialog.js:149`, `:169`).
@@ -993,4 +975,5 @@ sequenceDiagram
 
 ---
 
-*Generated from source at v0.0.6. Keep `file:line` references in sync when the source changes.*
+*Originally generated from source at v0.0.6; correctness-updated for the v0.1.0 relaunch. Keep
+`file:line` references in sync when the source changes.*
