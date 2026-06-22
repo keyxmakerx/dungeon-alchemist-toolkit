@@ -324,6 +324,12 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       try { v.pause(); v.removeAttribute("src"); v.load(); } catch (_) { /* ignore */ }
     }
     this._thumbVideos = [];
+    // Also clear any enlarged hover tooltip orphaned on document.body by a rebuild
+    // that happened while the pointer was still over a thumbnail.
+    document.querySelectorAll(".da-level-tooltip").forEach((t) => {
+      t.querySelector("video")?.pause();
+      t.remove();
+    });
   }
 
   /**
@@ -360,14 +366,14 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         if (gen !== this._sizeProbeGen) return; // superseded by a newer browse
         this._mediaSizes.set(pair.uid, bytes);
         this._applySizeBadge(pair, bytes);
-        if (bytes >= MEDIA_SIZE_WARN_BYTES) oversize.push(i);
+        if (bytes >= MEDIA_SIZE_WARN_BYTES) oversize.push(pair.stem);
       } catch (_) { /* unknown size — no warning */ }
     }));
     clearTimeout(timer);
 
     if (gen === this._sizeProbeGen && oversize.length) {
-      const list = oversize.sort((a, b) => a - b).join(", ");
-      ui.notifications.warn(`DA Importer: ${oversize.length} floor(s) exceed ~50 MB (floor ${list}). Large videos slow scene loads; consider importing referenced-in-place (Copy Media off).`);
+      // Report by filename, not index — a reorder during the probe would stale indices.
+      ui.notifications.warn(`DA Importer: ${oversize.length} floor(s) exceed ~50 MB (${oversize.join(", ")}). Large videos slow scene loads; consider importing referenced-in-place (Copy Media off).`);
     }
   }
 
@@ -431,6 +437,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       const st = this._levelState.get(pair.uid) ?? { name: pair.stem, isRoof: false, visible: new Set() };
       st.bottom = String(i === 0 ? 0 : i * height + 1);
       st.top = String((i + 1) * height);
+      if (i === 0) st.isRoof = false;   // a floor moved to the bottom can no longer be a roof
       this._levelState.set(pair.uid, st);
     });
   }
@@ -471,6 +478,18 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     const placeholder = this.element?.querySelector(".da-levels-placeholder");
     const list = this.element?.querySelector(".da-levels-list");
     if (!list) return;
+
+    // Continuous capture: any edit to a row input snapshots straight into
+    // _levelState (wired once per list element), so edits survive a full
+    // ApplicationV2 re-render — which rebuilds rows from _levelState. The
+    // Visible-Levels checkboxes live in body-appended dropdowns (they don't
+    // bubble to the list), so they capture via their own change handler below.
+    if (!list.dataset.daCaptureWired) {
+      const capture = () => this._captureRowState();
+      list.addEventListener("input", capture);
+      list.addEventListener("change", capture);
+      list.dataset.daCaptureWired = "1";
+    }
 
     if (!this._floorPairs.length) {
       if (placeholder) placeholder.hidden = false;
@@ -596,8 +615,10 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       const roofCheckbox = document.createElement("input");
       roofCheckbox.type = "checkbox";
       roofCheckbox.name = `levelIsRoof[${i}]`;
+      // The bottom floor (index 0) can't be a roof — it has no floor below to reveal.
+      roofCheckbox.disabled = i === 0;
       // Preserve an explicit choice; otherwise pre-tick when the filename says "roof".
-      roofCheckbox.checked = st ? !!st.isRoof : /\broof/i.test(pair.stem);
+      roofCheckbox.checked = i > 0 && (st ? !!st.isRoof : /\broof/i.test(pair.stem));
 
       const roofTrack = document.createElement("span");
       roofTrack.className = "da-toggle-track";
@@ -688,7 +709,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         }
       };
       updateBtn();
-      dropdown.addEventListener("change", updateBtn);
+      dropdown.addEventListener("change", () => { updateBtn(); this._captureRowState(); });
 
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -719,6 +740,10 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       wrap.appendChild(btn);
       row.appendChild(wrap);
     }
+
+    // Snapshot the freshly-built rows so _levelState has an entry for every
+    // floor; subsequent edits update it via the delegated listeners above.
+    this._captureRowState();
   }
 
   /**
@@ -746,6 +771,10 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       ui.notifications.warn("Please select a folder first.");
       return;
     }
+
+    // Snapshot current inputs so the import reflects live edits regardless of
+    // render state (keeps _levelState authoritative at the import boundary).
+    this._captureRowState();
 
     // Validate elevation ranges first: each level's bottom must be below its top.
     // Only fully-numeric rows are checked — a blank field falls back to a computed

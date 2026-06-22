@@ -47,6 +47,8 @@ export function getSceneLevels(scene) {
  */
 export function getCurrentLevelId(scene) {
   if (!scene) return null;
+  const levels = getSceneLevels(scene);
+  const validIds = new Set(levels.map((l) => l._id));
   const candidates = [
     canvas?.scene?.activeLevel?._id,
     canvas?.environment?.activeLevel?._id,
@@ -54,10 +56,11 @@ export function getCurrentLevelId(scene) {
     game.user?.activeLevel,
     scene.initialLevel
   ];
+  // Only accept a candidate that is actually a level on this scene; a stale/initial
+  // id (e.g. a deleted level) would otherwise mislead the starting-level dropdown.
   for (const c of candidates) {
-    if (typeof c === "string" && c) return c;
+    if (typeof c === "string" && validIds.has(c)) return c;
   }
-  const levels = getSceneLevels(scene);
   return levels[0]?._id ?? null;
 }
 

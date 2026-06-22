@@ -1,3 +1,12 @@
+# 0.0.13
+
+## [Fixed]
+- **Levels-tab edits are now captured continuously** into a per-floor state store, so a Name / elevation / Roof / Visible edit survives a full dialog re-render instead of silently reverting to defaults. (Prerequisite hardening for the upcoming edit-existing-scene work — see `docs/PLAN.md`.)
+- The **bottom floor's Roof toggle is disabled** — a floor with nothing below it can't be a roof; a roof dragged to the bottom clears automatically.
+- The oversized-media warning lists floors by filename (stable) instead of an index that could go stale after a reorder.
+- Enlarged hover previews no longer orphan on screen if the list rebuilds mid-hover.
+- The stairs tool's "current level" detection now validates the level still exists on the scene.
+
 # 0.0.12
 
 ## [Added]
