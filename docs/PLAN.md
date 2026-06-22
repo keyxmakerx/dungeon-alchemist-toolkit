@@ -2,8 +2,9 @@
 
 Grounded in three investigations (2026): a full codebase audit, a Foundry v14
 scene/level-editing + UI validation, and a Foundry v14 region-behavior/player-choice
-validation. **Nothing here is implemented yet.** Current state: v0.0.12 on branch
-`claude/festive-newton-i8l7nk`.
+validation. Current state: **v0.0.14** on branch `claude/festive-newton-i8l7nk` —
+Phase 0 (state-capture fix) and Phase 2 *edit existing scenes, v1* (in-place rename /
+re-elevate / reorder / visibility) are implemented; the rest below is not yet built.
 
 ---
 
@@ -50,9 +51,13 @@ validation. **Nothing here is implemented yet.** Current state: v0.0.12 on branc
    `region.sheet?.render(true)` to open `RegionConfig` immediately.
 
 6. **Source caveat:** the v14 Level data model and the core `changeLevel` `system`
-   schema are NOT in the community type defs (they track v13) and the official API was
-   egress-blocked, so several specifics are snippet-inferred. **Verify on a live v14
-   world before shipping each phase** (see checklist).
+   schema are NOT in the community type defs (they track v13). The **Level half is now
+   confirmed** against the official v14 API (`foundry.documents.Level`, the v14 flagship
+   feature): schema is `_id, name, elevation, background, foreground, fog, textures,
+   visibility, sort (IntegerSortField), flags` — which matches the importer's create and
+   update payloads, so `updateEmbeddedDocuments("Level", …)` and the `sort` reorder are
+   valid. The `changeLevel`/region `system` specifics (Phase 5) remain snippet-inferred —
+   **verify those on a live v14 world before shipping** (see checklist).
 
 ---
 
@@ -152,7 +157,8 @@ be tackled earlier, but it carries the most runtime/permission risk.
 
 ## Live-v14 verification checklist (before shipping each phase)
 
-- `scene.levels.contents[0].schema.fields` — confirm Level field names (Phase 2).
+- ✅ **Confirmed** — Level field names per the official v14 API (`foundry.documents.Level`):
+  `_id, name, elevation, background, foreground, fog, textures, visibility, sort, flags`.
 - A placeable's `.levels` Set field name on Wall/AmbientLight/Region (Phase 2/3).
 - `scene.update({ levels })` replace-vs-merge semantics; whether elevation edits need a
   `canvas.draw()` (issue #13595) (Phase 2).
