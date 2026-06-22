@@ -1,6 +1,7 @@
 import { DAImporterDialog } from "./importer-dialog.js";
 import { DARegionAdderDialog } from "./region-adder-dialog.js";
 import { startAddStairs, startLinkRegions } from "./portal/portal-wizard.js";
+import { DAStairsManager } from "./portal/portal-manager.js";
 import { MODULE_ID, SETTING_IMPORTER_DEFAULTS } from "./constants.js";
 
 Hooks.once("init", () => {
@@ -19,6 +20,8 @@ Hooks.once("init", () => {
     AddStairs: (opts) => startAddStairs(canvas?.scene, opts),
     // Link two already-selected Regions into a teleport pair.
     LinkStairs: (opts) => startLinkRegions(canvas?.scene, opts),
+    // Browse / find / edit / delete this scene's stairs/portals.
+    StairsManager: () => new DAStairsManager().render(true),
     // Legacy: the original single-region changeLevel tool (kept available, no button).
     AddRegion: () => new DARegionAdderDialog().render(true)
   };
@@ -56,10 +59,18 @@ Hooks.on("renderSceneDirectory", (_app, html) => {
   stairsBtn.dataset.tooltip = "Place an entrance, switch level, place an exit — linked as a native teleport (stairs, elevator, or same-map teleport)";
   stairsBtn.addEventListener("click", () => api.AddStairs());
 
+  const managerBtn = document.createElement("button");
+  managerBtn.type = "button";
+  managerBtn.className = "da-region-sidebar-btn";
+  managerBtn.innerHTML = '<i class="fas fa-diagram-project"></i> DA Stairs Manager';
+  managerBtn.dataset.tooltip = "List, find, edit, and delete the stairs/portals on this scene";
+  managerBtn.addEventListener("click", () => api.StairsManager());
+
   // Insert after the native action buttons (Create Scene / Create Folder) so the
   // buttons sit between those and the search bar, regardless of v14's markup.
   const actionButtons = header.querySelector(".action-buttons") ?? header.querySelector(".header-actions");
   const anchor = actionButtons ? actionButtons.nextSibling : null;
   header.insertBefore(importBtn, anchor);
   header.insertBefore(stairsBtn, anchor);
+  header.insertBefore(managerBtn, anchor);
 });

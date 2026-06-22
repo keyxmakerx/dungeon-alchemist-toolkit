@@ -1,0 +1,144 @@
+/**
+ * Stairs Manager — a per-scene panel listing every portal link, grouped, with
+ * select-&-pan / edit / delete / add actions. Complements (does not duplicate)
+ * the native Placeables tab: this view is stairs-only, cross-level, and
+ * link-aware (it shows both ends of each link together).
+ */
+
+import {
+  getPortalLinkGroups,
+  getScenePortals,
+  deletePortalLink
+} from "./portal-core.js";
+import { startAddStairs } from "./portal-wizard.js";
+import { getSceneLevels } from "../region-adder.js";
+
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+/** First level id a region is bound to (portals are single-level). */
+function regionLevelId(region) {
+  const lv = region?.levels;
+  if (!lv) return null;
+  if (lv instanceof Set) return [...lv][0] ?? null;
+  if (Array.isArray(lv)) return lv[0] ?? null;
+  return [...(lv.values?.() ?? [])][0] ?? null;
+}
+
+/** Center point of a region's first rectangle shape (for panning). */
+function regionCenter(region) {
+  const s = region?.shapes?.[0];
+  if (!s || !Number.isFinite(s.x) || !Number.isFinite(s.width)) return null;
+  return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+}
+
+/**
+ * Best-effort "view this level" across the v14 nav surface. Wrapped by callers
+ * in try/catch; if no documented path is found it silently no-ops (pan + control
+ * still work). ⚠️ Confirm the live v14 level-view API and pin this down.
+ */
+async function viewLevel(levelId) {
+  if (!levelId) return;
+  const nav = ui?.nav ?? globalThis.ui?.nav;
+  if (typeof nav?.viewLevel === "function") return nav.viewLevel(levelId);
+  if (typeof canvas?.scene?.view === "function") return canvas.scene.view({ level: levelId });
+}
+
+export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "da-stairs-manager",
+    tag: "div",
+    classes: ["da-stairs-manager-app"],
+    window: { title: "DA Stairs Manager", resizable: true },
+    position: { width: 480, height: "auto" },
+    actions: {
+      goto: DAStairsManager.#onGoto,
+      edit: DAStairsManager.#onEdit,
+      remove: DAStairsManager.#onRemove,
+      add: DAStairsManager.#onAdd,
+      refresh: DAStairsManager.#onRefresh
+    }
+  };
+
+  static PARTS = {
+    form: { template: "modules/dungeon-alchemist-toolkit/templates/portal-manager.hbs" }
+  };
+
+  /** @override */
+  async _prepareContext(_options) {
+    const scene = canvas?.scene;
+    if (!scene) return { hasScene: false };
+
+    const levels = getSceneLevels(scene);
+    const levelName = (id) => levels.find((l) => l._id === id)?.name ?? "—";
+
+    const links = [];
+    for (const [linkId, entries] of getPortalLinkGroups(scene)) {
+      const first = entries[0]?.portal ?? {};
+      links.push({
+        linkId,
+        label: first.label || "Stairs",
+        mode: first.mode || "stairs",
+        ends: entries.map((e) => ({
+          regionId: e.region.id,
+          role: e.portal?.role || "end",
+          levelName: levelName(regionLevelId(e.region))
+        }))
+      });
+    }
+    // Stable order: by label then linkId.
+    links.sort((a, b) => (a.label || "").localeCompare(b.label || "") || a.linkId.localeCompare(b.linkId));
+
+    return { hasScene: true, sceneName: scene.name, links, hasLinks: links.length > 0 };
+  }
+
+  /** Select & pan to a region (and best-effort switch to its level). */
+  static async #onGoto(_event, target) {
+    const scene = canvas?.scene;
+    const region = scene?.regions?.get(target.dataset.regionId);
+    if (!region) { ui.notifications.warn("DA Stairs: that region no longer exists."); return; }
+    try { await viewLevel(regionLevelId(region)); } catch (_) { /* non-fatal */ }
+    const c = regionCenter(region);
+    if (c && typeof canvas?.animatePan === "function") canvas.animatePan({ x: c.x, y: c.y, duration: 250 });
+    try { region.object?.control?.({ releaseOthers: true }); } catch (_) { /* non-fatal */ }
+  }
+
+  /** Open the entrance region's native config sheet. */
+  static async #onEdit(_event, target) {
+    const linkId = target.dataset.linkId;
+    const scene = canvas?.scene;
+    const portals = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId);
+    const entry = portals.find((e) => e.portal?.role === "entrance") ?? portals[0];
+    if (!entry) return;
+    entry.region.sheet?.render(true);
+  }
+
+  /** Delete both ends of a link (with confirm). */
+  static async #onRemove(_event, target) {
+    const linkId = target.dataset.linkId;
+    const scene = canvas?.scene;
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: "Delete stairs?" },
+      content: "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
+      rejectClose: false,
+      modal: true
+    }).catch(() => false);
+    if (!ok) return;
+    try {
+      await deletePortalLink(scene, linkId);
+      ui.notifications.info("DA Stairs: deleted.");
+    } catch (err) {
+      ui.notifications.error(`DA Stairs: delete failed (${err.message})`);
+      console.error(err);
+    }
+    this.render();
+  }
+
+  static async #onAdd() {
+    await this.close();
+    startAddStairs();
+  }
+
+  static #onRefresh() {
+    this.render();
+  }
+}

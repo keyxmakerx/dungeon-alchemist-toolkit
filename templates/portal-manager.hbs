@@ -1,0 +1,44 @@
+<div class="da-stairs-manager">
+  {{#unless hasScene}}
+    <p class="hint">Open a scene with Levels to manage its stairs.</p>
+  {{else}}
+    <p class="hint da-stairs-scene">Stairs / portals on <strong>{{sceneName}}</strong></p>
+
+    {{#if hasLinks}}
+      <ul class="da-stairs-list">
+        {{#each links}}
+          <li class="da-stairs-item" data-link-id="{{this.linkId}}">
+            <div class="da-stairs-head">
+              <span class="da-stairs-mode da-stairs-mode--{{this.mode}}">{{this.mode}}</span>
+              <span class="da-stairs-label">{{this.label}}</span>
+              <span class="da-stairs-tools">
+                <button type="button" data-action="edit" data-link-id="{{this.linkId}}" data-tooltip="Open the entrance region's config sheet">
+                  <i class="fas fa-pen"></i>
+                </button>
+                <button type="button" class="da-stairs-del" data-action="remove" data-link-id="{{this.linkId}}" data-tooltip="Delete both ends">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </span>
+            </div>
+            <div class="da-stairs-ends">
+              {{#each this.ends}}
+                <button type="button" class="da-stairs-end" data-action="goto" data-region-id="{{this.regionId}}" data-tooltip="Select & pan to this end">
+                  <i class="fas fa-location-crosshairs"></i>
+                  <span class="da-stairs-role">{{this.role}}</span>
+                  <span class="da-stairs-level">{{this.levelName}}</span>
+                </button>
+              {{/each}}
+            </div>
+          </li>
+        {{/each}}
+      </ul>
+    {{else}}
+      <p class="hint da-stairs-empty">No stairs or portals on this scene yet. Use <strong>“DA Add Stairs / Portal”</strong> to create one.</p>
+    {{/if}}
+
+    <footer class="sheet-footer flexrow da-stairs-footer">
+      <button type="button" data-action="add"><i class="fas fa-plus"></i> Add Stairs</button>
+      <button type="button" data-action="refresh"><i class="fas fa-rotate"></i> Refresh</button>
+    </footer>
+  {{/unless}}
+</div>
