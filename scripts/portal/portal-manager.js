@@ -9,6 +9,7 @@ import {
   getPortalLinkGroups,
   getScenePortals,
   deletePortalLink,
+  bindPortals,
   regionCenter,
   regionLevelId
 } from "./portal-core.js";
@@ -76,14 +77,73 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     try { region.object?.control?.({ releaseOthers: true }); } catch (_) { /* non-fatal */ }
   }
 
-  /** Open the entrance region's native config sheet. */
+  /**
+   * Link-aware editor: rename the whole link, change its type/two-way, or fall
+   * back to the native region sheet for shape/elevation. Writes through the shared
+   * bindPortals path so both ends stay consistent.
+   */
   static async #onEdit(_event, target) {
     const linkId = target.dataset.linkId;
     const scene = canvas?.scene;
-    const portals = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId);
-    const entry = portals.find((e) => e.portal?.role === "entrance") ?? portals[0];
-    if (!entry) return;
-    entry.region.sheet?.render(true);
+    const entries = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId);
+    if (!entries.length) { ui.notifications.warn("DA Stairs: that link no longer exists."); return; }
+    const entrance = entries.find((e) => e.portal?.role === "entrance") ?? entries[0];
+    const others = entries.filter((e) => e !== entrance);
+    const regions = [entrance.region, ...others.map((e) => e.region)];
+
+    const cur = entrance.portal ?? {};
+    const curMode = cur.mode || "stairs";
+    const curLabel = cur.label || "Stairs";
+    // Detect current two-way: every destination has a teleport behavior back.
+    const curTwoWay = others.length
+      ? others.every((e) => (e.region.behaviors?.contents ?? Array.from(e.region.behaviors ?? [])).some((b) => b.type === "teleportToken"))
+      : (curMode !== "trap");
+
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const modeOpts = ["stairs", "teleport", "trap"]
+      .map((m) => `<option value="${m}"${m === curMode ? " selected" : ""}>${m}</option>`).join("");
+    const content = `
+      <div class="da-stairs-opts">
+        <div class="form-group"><label>Label</label>
+          <input type="text" name="label" value="${esc(curLabel)}" /></div>
+        <div class="form-group"><label>Type</label>
+          <select name="mode">${modeOpts}</select></div>
+        <label class="da-stairs-opts-check">
+          <input type="checkbox" name="twoWay"${curTwoWay ? " checked" : ""} /> Two-way (destination links back)</label>
+      </div>`;
+
+    const choice = await foundry.applications.api.DialogV2.wait({
+      window: { title: "Edit Stairs / Portal" },
+      content,
+      buttons: [
+        {
+          action: "save", label: "Save", icon: "fas fa-check", default: true,
+          callback: (_e, btn) => {
+            const f = btn?.form;
+            return {
+              action: "save",
+              label: f?.elements?.label?.value?.trim() || "Stairs",
+              mode: f?.elements?.mode?.value || "stairs",
+              twoWay: f?.elements?.twoWay?.checked ?? true
+            };
+          }
+        },
+        { action: "sheet", label: "Open Region Sheet", icon: "fas fa-pen-to-square", callback: () => ({ action: "sheet" }) },
+        { action: "cancel", label: "Cancel", icon: "fas fa-xmark", callback: () => ({ action: "cancel" }) }
+      ],
+      rejectClose: false
+    }).catch(() => null);
+
+    if (!choice || choice.action === "cancel") return;
+    if (choice.action === "sheet") { entrance.region.sheet?.render(true); return; }
+    try {
+      await bindPortals({ regions, mode: choice.mode, label: choice.label, twoWay: choice.twoWay });
+      ui.notifications.info("DA Stairs: updated.");
+    } catch (err) {
+      ui.notifications.error(`DA Stairs: update failed (${err.message})`);
+      console.error(err);
+    }
+    this.render();
   }
 
   /** Delete both ends of a link (with confirm). */

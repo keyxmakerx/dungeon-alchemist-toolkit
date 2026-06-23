@@ -95,11 +95,31 @@ export function regionLevelId(region) {
   return [...(lv.values?.() ?? [])][0] ?? null;
 }
 
-/** Center point (world coords) of a region's first rectangle shape, or null. */
+/**
+ * Center point (world coords) of a region, robust to shape type. Prefers the
+ * region's native bounds centroid; falls back to a rectangle center, a polygon
+ * points average, then an ellipse center. Returns null if none resolve.
+ */
 export function regionCenter(region) {
+  try {
+    const b = region?.object?.bounds ?? region?.bounds;
+    if (b && Number.isFinite(b.x) && Number.isFinite(b.width) && (b.width || b.height)) {
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    }
+  } catch (_) { /* fall through to shape math */ }
   const s = region?.shapes?.[0];
-  if (!s || !Number.isFinite(s.x) || !Number.isFinite(s.width)) return null;
-  return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+  if (!s) return null;
+  if (Number.isFinite(s.x) && Number.isFinite(s.width)) {           // rectangle
+    const h = Number.isFinite(s.height) ? s.height : s.width;
+    return { x: s.x + s.width / 2, y: s.y + h / 2 };
+  }
+  if (Array.isArray(s.points) && s.points.length >= 4) {            // polygon
+    let sx = 0, sy = 0, n = 0;
+    for (let i = 0; i + 1 < s.points.length; i += 2) { sx += s.points[i]; sy += s.points[i + 1]; n++; }
+    if (n) return { x: sx / n, y: sy / n };
+  }
+  if (Number.isFinite(s.x) && Number.isFinite(s.y)) return { x: s.x, y: s.y }; // ellipse center
+  return null;
 }
 
 /**
@@ -181,6 +201,63 @@ function buildTeleportBehavior({ destinations, choice, revealed }) {
 }
 
 /**
+ * Replace a region's teleportToken behavior(s) with a single one pointing at
+ * `targets` (or remove it if `targets` is empty). Replacing — rather than
+ * appending — keeps re-linking/editing idempotent instead of stacking duplicates.
+ *
+ * @param {RegionDocument} region
+ * @param {string[]} targets   Destination Region UUIDs (empty = remove teleport).
+ * @param {{choice:boolean,revealed:boolean}} preset
+ */
+async function replaceTeleportBehavior(region, targets, preset) {
+  const behaviors = region.behaviors?.contents ?? Array.from(region.behaviors ?? []);
+  const stale = behaviors.filter((b) => b.type === "teleportToken").map((b) => b.id);
+  if (stale.length) await region.deleteEmbeddedDocuments("RegionBehavior", stale);
+  if (targets.length) {
+    await region.createEmbeddedDocuments("RegionBehavior", [
+      buildTeleportBehavior({ destinations: targets, choice: preset.choice, revealed: preset.revealed })
+    ]);
+  }
+}
+
+/**
+ * Wire a set of regions into one portal link — the single write path shared by
+ * create, direct-connect, and the Manager's link editor. `regions[0]` is the
+ * entrance; `regions[1..]` are destinations. Idempotent: reuses an existing
+ * `linkId` if any input region already has one, upserts the portal flag, applies
+ * the mode's look (color; a trap hides its entrance), and REPLACES each region's
+ * teleport behavior (never appends). Traps are one-way regardless of `twoWay`.
+ *
+ * @param {object} params
+ * @param {RegionDocument[]} params.regions  Entrance first, then destination(s).
+ * @param {"stairs"|"teleport"|"trap"} [params.mode="stairs"]
+ * @param {string} [params.label="Stairs"]
+ * @param {boolean} [params.twoWay=true]
+ * @returns {Promise<string|null>} the link id, or null if not a GM.
+ */
+export async function bindPortals({ regions, mode = "stairs", label = "Stairs", twoWay = true }) {
+  if (!requireGM()) return null;
+  if (!Array.isArray(regions) || regions.length < 2) {
+    throw new Error("A portal link needs an entrance and at least one destination.");
+  }
+  const preset = MODE_PRESETS[mode] ?? MODE_PRESETS.stairs;
+  const bidirectional = mode === "trap" ? false : twoWay;
+  // Reuse an existing link id so re-linking/editing converges instead of forking.
+  const linkId = regions.map(getPortalFlag).find((f) => f?.linkId)?.linkId ?? foundry.utils.randomID();
+
+  const uuids = regions.map((r) => regionUuid(r));
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    const isEntrance = i === 0;
+    await region.setFlag(MODULE_ID, PORTAL_FLAG, { linkId, label, mode, role: isEntrance ? "entrance" : "destination" });
+    try { await region.update({ color: preset.color, hidden: !!(preset.hidden && isEntrance) }); } catch (_) { /* non-fatal */ }
+    const targets = isEntrance ? uuids.slice(1) : (bidirectional ? [uuids[0]] : []);
+    await replaceTeleportBehavior(region, targets, preset);
+  }
+  return linkId;
+}
+
+/**
  * Create a linked stair/portal group from a set of placed rectangles.
  *
  * `segments[0]` is the entrance; `segments[1..]` are destination(s). Entering the
@@ -204,10 +281,9 @@ export async function createLinkedStairs({ scene, segments, mode = "stairs", lab
   }
   const preset = MODE_PRESETS[mode] ?? MODE_PRESETS.stairs;
   const linkId = foundry.utils.randomID();
-  // Traps are one-way regardless of the twoWay flag (you fall in, you don't climb back).
-  const bidirectional = mode === "trap" ? false : twoWay;
 
-  // 1) Create every region first (no behavior yet) so their UUIDs exist.
+  // Create every region first (no behavior yet) so their UUIDs exist, then wire
+  // the link via the shared bindPortals path (which replaces, never appends).
   const regionData = segments.map((seg, i) =>
     buildPortalRegionData({
       scene,
@@ -222,31 +298,15 @@ export async function createLinkedStairs({ scene, segments, mode = "stairs", lab
   const regions = await scene.createEmbeddedDocuments("Region", regionData);
   if (!regions?.length) throw new Error("Region creation returned no documents.");
 
-  // 2) Wire teleport behaviors with the now-known UUIDs.
-  const uuids = regions.map((r) => regionUuid(r));
-  const entrance = regions[0];
-  const destUuids = uuids.slice(1);
-
-  await entrance.createEmbeddedDocuments("RegionBehavior", [
-    buildTeleportBehavior({ destinations: destUuids, choice: preset.choice, revealed: preset.revealed })
-  ]);
-
-  if (bidirectional) {
-    for (let i = 1; i < regions.length; i++) {
-      await regions[i].createEmbeddedDocuments("RegionBehavior", [
-        buildTeleportBehavior({ destinations: [uuids[0]], choice: preset.choice, revealed: preset.revealed })
-      ]);
-    }
-  }
-
+  await bindPortals({ regions, mode, label, twoWay });
   return regions;
 }
 
 /**
- * Link two *existing* regions into a portal pair (direct-connect flow): stamps
- * the portal flag on both and gives each a `teleportToken` behavior pointing at
- * the other. Existing teleport behaviors on those regions are left in place
- * (the caller may want to dedupe).
+ * Link two *existing* regions into a portal pair (direct-connect). Delegates to
+ * the shared bindPortals path: stamps the portal flag, applies the mode's look,
+ * and REPLACES each region's teleport behavior (reusing an existing link id), so
+ * re-linking never stacks duplicate behaviors.
  *
  * @param {object} params
  * @param {RegionDocument} params.regionA  Entrance.
@@ -260,21 +320,7 @@ export async function linkExistingRegions({ regionA, regionB, mode = "stairs", l
   if (!requireGM()) return;
   if (!regionA || !regionB) throw new Error("Two regions are required to link.");
   if (regionA === regionB || regionA.id === regionB.id) throw new Error("Cannot link a region to itself.");
-  const preset = MODE_PRESETS[mode] ?? MODE_PRESETS.stairs;
-  const linkId = foundry.utils.randomID();
-  const bidirectional = mode === "trap" ? false : twoWay;
-
-  await regionA.setFlag(MODULE_ID, PORTAL_FLAG, { linkId, label, mode, role: "entrance" });
-  await regionB.setFlag(MODULE_ID, PORTAL_FLAG, { linkId, label, mode, role: "destination" });
-
-  await regionA.createEmbeddedDocuments("RegionBehavior", [
-    buildTeleportBehavior({ destinations: [regionUuid(regionB)], choice: preset.choice, revealed: preset.revealed })
-  ]);
-  if (bidirectional) {
-    await regionB.createEmbeddedDocuments("RegionBehavior", [
-      buildTeleportBehavior({ destinations: [regionUuid(regionA)], choice: preset.choice, revealed: preset.revealed })
-    ]);
-  }
+  await bindPortals({ regions: [regionA, regionB], mode, label, twoWay });
 }
 
 /**
