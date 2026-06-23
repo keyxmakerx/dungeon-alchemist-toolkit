@@ -160,6 +160,9 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
     ui.notifications.warn("DA Importer: no Dungeon Alchemist floor pairs (image/video + .json) found in folder.");
     return null;
   }
+  if (pairs.orphans?.length) {
+    ui.notifications.warn(`DA Importer: skipped ${pairs.orphans.length} unpaired file(s) — an image/video with no matching .json, or vice-versa (see console for the list).`);
+  }
 
   // Heuristic: a folder should hold a single map. If the stems resolve to more
   // than one base-name, warn (but proceed) — floors from different maps would
@@ -220,6 +223,20 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
 
   const first = floors[0].data;
   const stem = _commonStem(pairs);
+
+  // Validate the map-wide scalars from the (untrusted) first-floor DA JSON. Walls
+  // and lights are already guarded per-entry; these scene-level values would
+  // otherwise fail Scene.create with a cryptic error and lose the whole import.
+  const sceneWidth = first.width;
+  const sceneHeight = first.height;
+  const sceneGrid = first.grid;
+  if (![sceneWidth, sceneHeight, sceneGrid].every((v) => Number.isFinite(v) && v > 0)) {
+    ui.notifications.error(`DA Importer: the first floor's data has invalid map dimensions — width/height/grid must be positive numbers (got width=${sceneWidth}, height=${sceneHeight}, grid=${sceneGrid}).`);
+    return null;
+  }
+  const scenePadding = Number.isFinite(first.padding) ? Math.min(Math.max(first.padding, 0), 0.5) : 0.25;
+  const sceneGridDistance = Number.isFinite(first.gridDistance) && first.gridDistance > 0 ? first.gridDistance : 5;
+  const sceneGridColor = /^#[0-9a-f]{6}$/i.test(first.gridColor) ? first.gridColor : "#000000";
 
   const levels = floors.map((f, i) => {
     const ov = levelOverrides[i];
@@ -282,19 +299,19 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
 
   const sceneData = {
     name: stem || "Dungeon Alchemist Map",
-    width: first.width,
-    height: first.height,
-    padding: first.padding ?? 0.25,
+    width: sceneWidth,
+    height: sceneHeight,
+    padding: scenePadding,
     background: { color: backgroundColor },
     grid: {
       type: 1,
-      size: first.grid,
+      size: sceneGrid,
       style: "solidLines",
       thickness: 1,
-      color: first.gridColor ?? "#000000",
+      color: sceneGridColor,
       alpha: gridAlpha,
-      distance: first.gridDistance ?? 5,
-      units: first.gridUnits ?? "ft"
+      distance: sceneGridDistance,
+      units: typeof first.gridUnits === "string" ? first.gridUnits : "ft"
     },
     tokenVision: true,
     // Fog omitted — inherit the v14 default. v14 replaced the old numeric `fog.mode`
@@ -394,6 +411,9 @@ export function collectFloorPairs(files) {
     console.warn(`[DA Importer] skipped ${orphans.length} unpaired file(s):`, orphans);
   }
   pairs.sort((a, b) => a.index - b.index || a.stem.localeCompare(b.stem));
+  // Carry the orphan list so importFolder can surface it to the GM (the dialog
+  // ignores this property).
+  pairs.orphans = orphans;
   return pairs;
 }
 
@@ -472,7 +492,7 @@ function _mapWall(daWall, levelId, doorTexture = "", doorSound = "") {
     move:  _moveEnum(daWall.move ?? 1),
     sight: _senseEnum(daWall.sense ?? 1),
     sound: _senseEnum(daWall.sound ?? 1),
-    door:  daWall.door ?? 0,
+    door:  daWall.door === 1 ? 1 : 0,
     ds: 0,
     levels: [levelId]
   };
@@ -506,8 +526,8 @@ function _mapLight(daLight, levelId, elevation) {
     config: {
       dim: Number.isFinite(daLight.dim) ? daLight.dim : 0,
       bright: Number.isFinite(daLight.bright) ? daLight.bright : 0,
-      color: daLight.tintColor ?? null,
-      alpha: daLight.tintAlpha ?? 0.5,
+      color: /^#[0-9a-f]{6}$/i.test(daLight.tintColor) ? daLight.tintColor : null,
+      alpha: Number.isFinite(daLight.tintAlpha) ? Math.min(Math.max(daLight.tintAlpha, 0), 1) : 0.5,
       angle: 360,
       coloration: 1,
       luminosity: 0.5,

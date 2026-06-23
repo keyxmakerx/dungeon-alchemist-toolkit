@@ -657,8 +657,8 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     // default downstream (always valid), so it must not be flagged here.
     const badLevels = [];
     for (let i = 0; i < this._floorPairs.length; i++) {
-      const b = parseInt(this.element.querySelector(`input[name="levelBottom[${i}]"]`)?.value ?? "", 10);
-      const t = parseInt(this.element.querySelector(`input[name="levelTop[${i}]"]`)?.value ?? "", 10);
+      const b = parseFloat(this.element.querySelector(`input[name="levelBottom[${i}]"]`)?.value ?? "");
+      const t = parseFloat(this.element.querySelector(`input[name="levelTop[${i}]"]`)?.value ?? "");
       if (Number.isFinite(b) && Number.isFinite(t) && b >= t) badLevels.push(i);
     }
     if (badLevels.length) {
@@ -677,8 +677,8 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
     const levelOverrides = this._floorPairs.map((_, i) => ({
       name:   this.element.querySelector(`input[name="levelName[${i}]"]`)?.value?.trim() || `Floor ${i}`,
-      bottom: parseInt(this.element.querySelector(`input[name="levelBottom[${i}]"]`)?.value ?? "", 10),
-      top:    parseInt(this.element.querySelector(`input[name="levelTop[${i}]"]`)?.value ?? "", 10),
+      bottom: parseFloat(this.element.querySelector(`input[name="levelBottom[${i}]"]`)?.value ?? ""),
+      top:    parseFloat(this.element.querySelector(`input[name="levelTop[${i}]"]`)?.value ?? ""),
       isRoof: this.element.querySelector(`input[name="levelIsRoof[${i}]"]`)?.checked ?? false
     }));
 
