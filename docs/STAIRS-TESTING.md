@@ -53,9 +53,12 @@ details are inferred from release notes. If something misbehaves it's almost
 certainly one of these — each a small, localized fix:
 
 1. **`teleportToken` system schema** — `portal-core.js` `buildTeleportBehavior`
-   emits `system: { destinations:[regionUUID], choice, revealed }`. If the
-   **move/confirm never fires**, check `CONFIG.RegionBehavior.dataModels.teleportToken.schema`
-   (or an existing teleport region's `behaviors[0].system`) and adjust the field names.
+   now reads the live `CONFIG.RegionBehavior.dataModels.teleportToken.schema` and
+   emits only the fields it declares (core v12–v14: a single `destination` UUID +
+   `choice`; it also fills `destinations`/`revealed` if a build exposes them). If the
+   **move/confirm still never fires**, dump that schema —
+   `Object.keys(CONFIG.RegionBehavior.dataModels.teleportToken.schema.fields)` — or an
+   existing teleport region's `behaviors[0].system`, and report the field names.
 2. **Level-view API** — `portal-manager.js` `viewLevel` (and the overlay's
    "current level") is best-effort. If **select-&-pan doesn't switch floors** or the
    GM line shows on the wrong level, tell me the live v14 "view this level" call.

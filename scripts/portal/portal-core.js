@@ -10,11 +10,12 @@
  * each other, plus a `flags` stamp so the Manager and the GM overlay can find and
  * group them.
  *
- * ⚠️ Live-v14 verification: the `teleportToken` system schema below
- * (`destinations` = array of Region UUID strings, `choice`, `revealed`) is taken
- * from the v14 release notes / API research; confirm field names against a live
- * world (`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and adjust
- * `buildTeleportBehavior` if they differ.
+ * Live-v14 schema: rather than hardcode guessed field names, `buildTeleportBehavior`
+ * reads the running world's behavior schema
+ * (`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and emits exactly the
+ * fields it declares (core v12–v14 uses a single `destination` Region UUID +
+ * `choice`; we also fill `destinations`/`revealed` if a build exposes them). This
+ * matches the rest of the module's feature-detect-and-degrade approach.
  */
 
 import { MODULE_ID, PORTAL_FLAG, FLOOR_HEIGHT } from "../constants.js";
@@ -130,21 +131,45 @@ function buildPortalRegionData({ scene, x, y, width, height, levelId, flag, colo
 
 /**
  * Build a native `teleportToken` RegionBehavior source.
+ *
+ * Emits the `system` payload by reading the LIVE behavior schema so we use the
+ * field names the running world actually defines — core v12–v14 uses a single
+ * `destination` (Region UUID) + `choice`; we also set `destinations`/`revealed`
+ * if a build exposes them. If the schema can't be read we emit a superset; a
+ * DataModel drops keys it doesn't know, so the extra keys are harmless.
+ *
+ * Note: core teleportToken targets ONE destination per behavior, so for a
+ * multi-segment group only the first (`primary`) destination is wired from the
+ * entrance — the standard entrance→exit pair is unaffected.
+ *
  * @param {object} p
- * @param {string[]} p.destinations  Region UUIDs to teleport into.
+ * @param {string[]} p.destinations  Region UUID(s) to teleport into (first = primary).
  * @param {boolean} p.choice         Prompt the player to confirm/pick first.
- * @param {boolean} p.revealed       Reveal destination name(s) in the prompt.
+ * @param {boolean} p.revealed       Reveal destination name(s) in the prompt (if supported).
  * @returns {object}
  */
 function buildTeleportBehavior({ destinations, choice, revealed }) {
-  return {
-    name: "Teleport",
-    type: "teleportToken",
-    // ⚠️ verify these system field names against a live v14 world (see header).
-    system: { destinations: [...destinations], choice: !!choice, revealed: !!revealed },
-    disabled: false,
-    flags: {}
+  const dests = [...destinations];
+  const primary = dests[0] ?? null;
+
+  const schema = globalThis.CONFIG?.RegionBehavior?.dataModels?.teleportToken?.schema;
+  const hasField = (f) => {
+    try { return !!(schema?.has?.(f) || schema?.fields?.[f]); } catch { return false; }
   };
+
+  let system;
+  if (schema && (hasField("destination") || hasField("destinations"))) {
+    system = {};
+    if (hasField("destination"))  system.destination  = primary;
+    if (hasField("destinations")) system.destinations = dests;
+    if (hasField("choice"))       system.choice       = !!choice;
+    if (hasField("revealed"))     system.revealed     = !!revealed;
+  } else {
+    // Schema unreadable — emit both shapes; the DataModel keeps only valid keys.
+    system = { destination: primary, destinations: dests, choice: !!choice, revealed: !!revealed };
+  }
+
+  return { name: "Teleport", type: "teleportToken", system, disabled: false, flags: {} };
 }
 
 /**

@@ -60,15 +60,15 @@ enough not to be a bug source?
 - Plus a Stairs Manager panel, a GM-only link overlay, and sight-gated clickable player
   "Stairs" labels.
 
-**⚠️ #1 verify-live item:** the `teleportToken` system field names
-(`destinations`/`choice`/`revealed`) in `scripts/portal/portal-core.js`
-(`buildTeleportBehavior`) are inferred from v14 docs, not a live read. If a token walks
-onto a stair and nothing happens, read
-`CONFIG.RegionBehavior.dataModels.teleportToken.schema` (or an existing teleport region's
-`behaviors[0].system`) on a live v14 world and align the field names. The full verify-live
-list (level-view API, LOS test, click-to-use nudge, canvas/PIXI layers) is in
-`docs/STAIRS-TESTING.md` — all are feature-detected + guarded, so wrong guesses degrade to
-"no overlay", never a crash.
+**⚠️ #1 verify-live item:** `buildTeleportBehavior` in `scripts/portal/portal-core.js`
+now reads the live `teleportToken` schema
+(`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and emits only the fields it
+declares (core v12–v14: a single `destination` UUID + `choice`), instead of hardcoding the
+earlier `destinations`/`revealed` guess. This still wants a live confirm: if a token walks
+onto a stair and nothing happens, dump that schema (or an existing teleport region's
+`behaviors[0].system`) and align/report. The rest of the verify-live list (level-view API,
+LOS test, click-to-use nudge, canvas/PIXI layers) is in `docs/STAIRS-TESTING.md` — all are
+feature-detected + guarded, so wrong guesses degrade to "no overlay", never a crash.
 
 ## 4. Migration → `keyxmakerx/dungeon-alchemist-toolkit`
 1. **Seed the new repo** with this branch's contents (HEAD `b6cf7de`). Preferred (keeps
