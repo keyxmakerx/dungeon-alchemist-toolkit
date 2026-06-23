@@ -16,6 +16,7 @@
 
 import { getSceneLevels, getCurrentLevelId } from "./levels.js";
 import { pickCanvasRectangle } from "./canvas-pick.js";
+import { requireGM } from "./util.js";
 
 // Backward-compatible re-exports of the relocated helpers.
 export { getSceneLevels, getCurrentLevelId, pickCanvasRectangle };
@@ -43,6 +44,7 @@ export { getSceneLevels, getCurrentLevelId, pickCanvasRectangle };
  * @returns {Promise<RegionDocument>}
  */
 export async function createMultiLevelRegion({ scene, x, y, width, height, levelIds, name = "Multi-Level Region" }) {
+  if (!requireGM()) return null;
   if (!scene) throw new Error("No scene provided.");
   if (!Array.isArray(levelIds) || levelIds.length === 0) {
     throw new Error("levelIds must be a non-empty array.");

@@ -11,6 +11,7 @@
 import { createLinkedStairs, linkExistingRegions, getPortalFlag } from "./portal-core.js";
 import { getSceneLevels, getCurrentLevelId } from "../levels.js";
 import { pickCanvasRectangle } from "../canvas-pick.js";
+import { requireGM } from "../util.js";
 
 /**
  * Small DialogV2 to choose the portal type / label / directionality before
@@ -66,6 +67,7 @@ async function promptStairsOptions() {
  * @returns {Promise<void>}
  */
 export async function addStairsInteractive(scene = canvas?.scene) {
+  if (!requireGM()) return;
   if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
   if (!getSceneLevels(scene).length) {
     ui.notifications.warn("DA Stairs: this scene has no Levels — import or add levels first.");
@@ -89,6 +91,7 @@ export async function addStairsInteractive(scene = canvas?.scene) {
  * @returns {Promise<void>}
  */
 export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true } = {}) {
+  if (!requireGM()) return;
   if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
   if (!getSceneLevels(scene).length) {
     ui.notifications.warn("DA Stairs: this scene has no Levels — import or add levels first.");
@@ -148,6 +151,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
  * @returns {Promise<void>}
  */
 export async function startLinkRegions(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true } = {}) {
+  if (!requireGM()) return;
   if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
 
   const controlled = canvas?.regions?.controlled ?? [];

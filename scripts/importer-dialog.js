@@ -1,5 +1,6 @@
 import { importFolder, collectFloorPairs, isVideoPath } from "./da-importer.js";
 import { FLOOR_HEIGHT, MODULE_ID, SETTING_IMPORTER_DEFAULTS, MEDIA_SIZE_WARN_BYTES } from "./constants.js";
+import { requireGM } from "./util.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -639,6 +640,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
   }
 
   static async #onImport(_event, _target) {
+    if (!requireGM("DA Importer: only a GM can import scenes.")) return;
     const folder = this.element.querySelector("input[name='folder']")?.value?.trim();
     const source = this.element.querySelector("input[name='source']")?.value?.trim() || "data";
     if (!folder) {

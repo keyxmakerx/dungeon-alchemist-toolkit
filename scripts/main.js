@@ -5,6 +5,7 @@ import { DAStairsManager } from "./portal/portal-manager.js";
 import { registerPortalOverlayHooks } from "./portal/portal-overlay.js";
 import { registerPlayerPortalHooks } from "./portal/portal-player-overlay.js";
 import { MODULE_ID, SETTING_IMPORTER_DEFAULTS } from "./constants.js";
+import { requireGM } from "./util.js";
 
 Hooks.once("init", () => {
   // Per-client memory of the importer dialog's last-used selections (door
@@ -17,16 +18,20 @@ Hooks.once("init", () => {
   });
 
   game.modules.get(MODULE_ID).api = {
-    Importer: () => new DAImporterDialog().render(true),
+    Importer: () => { if (!requireGM()) return null; return new DAImporterDialog().render(true); },
     // New native-teleport stairs/portal flow. No args -> prompt for type/label first;
     // explicit opts (e.g. {mode:"trap"}) skip the prompt.
-    AddStairs: (opts) => (opts ? startAddStairs(canvas?.scene, opts) : addStairsInteractive(canvas?.scene)),
+    AddStairs: (opts) => {
+      if (!requireGM()) return null;
+      return opts ? startAddStairs(canvas?.scene, opts) : addStairsInteractive(canvas?.scene);
+    },
     // Link two already-selected Regions into a teleport pair.
-    LinkStairs: (opts) => startLinkRegions(canvas?.scene, opts),
-    // Browse / find / edit / delete this scene's stairs/portals.
-    StairsManager: () => new DAStairsManager().render(true),
+    LinkStairs: (opts) => { if (!requireGM()) return null; return startLinkRegions(canvas?.scene, opts); },
+    // Browse / find / edit / delete this scene's stairs/portals. GM-only — the list
+    // would otherwise reveal hidden trap locations to players.
+    StairsManager: () => { if (!requireGM()) return null; return new DAStairsManager().render(true); },
     // Legacy: the original single-region changeLevel tool (kept available, no button).
-    AddRegion: () => new DARegionAdderDialog().render(true)
+    AddRegion: () => { if (!requireGM()) return null; return new DARegionAdderDialog().render(true); }
   };
 
   // GM-only translucent link overlay for same-level portal pairs + portal markers.

@@ -20,6 +20,7 @@
 
 import { MODULE_ID, PORTAL_FLAG, FLOOR_HEIGHT } from "../constants.js";
 import { getSceneLevels } from "../levels.js";
+import { requireGM } from "../util.js";
 
 /**
  * Mode presets — map the friendly mode to native `teleportToken` config + look.
@@ -189,6 +190,7 @@ function buildTeleportBehavior({ destinations, choice, revealed }) {
  * @returns {Promise<RegionDocument[]>} The created portal regions (entrance first).
  */
 export async function createLinkedStairs({ scene, segments, mode = "stairs", label = "Stairs", twoWay = true }) {
+  if (!requireGM()) return null;
   if (!scene) throw new Error("No scene provided.");
   if (!Array.isArray(segments) || segments.length < 2) {
     throw new Error("A portal needs an entrance and at least one destination.");
@@ -248,6 +250,7 @@ export async function createLinkedStairs({ scene, segments, mode = "stairs", lab
  * @returns {Promise<void>}
  */
 export async function linkExistingRegions({ regionA, regionB, mode = "stairs", label = "Stairs", twoWay = true }) {
+  if (!requireGM()) return;
   if (!regionA || !regionB) throw new Error("Two regions are required to link.");
   if (regionA === regionB || regionA.id === regionB.id) throw new Error("Cannot link a region to itself.");
   const preset = MODE_PRESETS[mode] ?? MODE_PRESETS.stairs;
@@ -274,6 +277,7 @@ export async function linkExistingRegions({ regionA, regionB, mode = "stairs", l
  * @returns {Promise<void>}
  */
 export async function deletePortalLink(scene, linkId) {
+  if (!requireGM()) return;
   const ids = getScenePortals(scene)
     .filter((e) => e.portal?.linkId === linkId)
     .map((e) => e.region.id);

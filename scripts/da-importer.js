@@ -16,6 +16,7 @@
  */
 
 import { FLOOR_HEIGHT } from "./constants.js";
+import { requireGM } from "./util.js";
 
 const FLOOR_RE = /-_(\d+)$/;
 
@@ -142,6 +143,7 @@ async function _copyMedia(srcUrl, destFolder, kebabStem, ext) {
  * @returns {Promise<Scene|null>}                        The created Scene, or null on abort.
  */
 export async function importFolder({ source, path, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
+  if (!requireGM("DA Importer: only a GM can import scenes.")) return null;
   const FilePicker = foundry.applications.apps.FilePicker.implementation;
 
   let listing;
