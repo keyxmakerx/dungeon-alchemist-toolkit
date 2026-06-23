@@ -10,12 +10,11 @@
  * each other, plus a `flags` stamp so the Manager and the GM overlay can find and
  * group them.
  *
- * Live-v14 schema: rather than hardcode guessed field names, `buildTeleportBehavior`
- * reads the running world's behavior schema
- * (`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and emits exactly the
- * fields it declares (core v12–v14 uses a single `destination` Region UUID +
- * `choice`; we also fill `destinations`/`revealed` if a build exposes them). This
- * matches the rest of the module's feature-detect-and-degrade approach.
+ * Live-v14 schema: `buildTeleportBehavior` reads the running world's behavior
+ * schema (`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and emits the
+ * fields it declares — preferring v14's canonical plural `destinations` (array of
+ * Region UUIDs) over the deprecated singular `destination`, plus `choice`/`revealed`
+ * when present. This matches the module's feature-detect-and-degrade approach.
  */
 
 import { MODULE_ID, PORTAL_FLAG, FLOOR_HEIGHT } from "../constants.js";
@@ -133,15 +132,14 @@ function buildPortalRegionData({ scene, x, y, width, height, levelId, flag, colo
 /**
  * Build a native `teleportToken` RegionBehavior source.
  *
- * Emits the `system` payload by reading the LIVE behavior schema so we use the
- * field names the running world actually defines — core v12–v14 uses a single
- * `destination` (Region UUID) + `choice`; we also set `destinations`/`revealed`
- * if a build exposes them. If the schema can't be read we emit a superset; a
- * DataModel drops keys it doesn't know, so the extra keys are harmless.
+ * Reads the LIVE behavior schema and emits the field names the running world
+ * defines, preferring v14's canonical plural `destinations` (array of Region
+ * UUIDs) over the deprecated singular `destination`, plus `choice`/`revealed`
+ * when present. If the schema can't be read we emit a superset (plural first); a
+ * DataModel drops keys it doesn't declare, so extra keys are harmless.
  *
- * Note: core teleportToken targets ONE destination per behavior, so for a
- * multi-segment group only the first (`primary`) destination is wired from the
- * entrance — the standard entrance→exit pair is unaffected.
+ * With >1 destination, `choice` is forced on so native doesn't silently land on a
+ * random target. The singular-only fallback wires just the first destination.
  *
  * @param {object} p
  * @param {string[]} p.destinations  Region UUID(s) to teleport into (first = primary).
@@ -152,22 +150,31 @@ function buildPortalRegionData({ scene, x, y, width, height, levelId, flag, colo
 function buildTeleportBehavior({ destinations, choice, revealed }) {
   const dests = [...destinations];
   const primary = dests[0] ?? null;
+  // >1 destination: force the confirm/picker so native doesn't silently pick at random.
+  const wantChoice = dests.length > 1 ? true : !!choice;
 
   const schema = globalThis.CONFIG?.RegionBehavior?.dataModels?.teleportToken?.schema;
   const hasField = (f) => {
     try { return !!(schema?.has?.(f) || schema?.fields?.[f]); } catch { return false; }
   };
 
+  // One-time diagnostic so the live field names are a single console line.
+  if (!buildTeleportBehavior._logged) {
+    buildTeleportBehavior._logged = true;
+    try { console.debug("[DA Toolkit] teleportToken schema fields:", Object.keys(schema?.fields ?? {})); } catch { /* ignore */ }
+  }
+
   let system;
-  if (schema && (hasField("destination") || hasField("destinations"))) {
+  if (schema && (hasField("destinations") || hasField("destination"))) {
     system = {};
-    if (hasField("destination"))  system.destination  = primary;
-    if (hasField("destinations")) system.destinations = dests;
-    if (hasField("choice"))       system.choice       = !!choice;
-    if (hasField("revealed"))     system.revealed     = !!revealed;
+    if (hasField("destinations")) system.destinations = dests;       // v14 canonical (plural)
+    else if (hasField("destination")) system.destination = primary;  // deprecated singular fallback
+    if (hasField("choice"))   system.choice   = wantChoice;
+    if (hasField("revealed")) system.revealed = !!revealed;
   } else {
-    // Schema unreadable — emit both shapes; the DataModel keeps only valid keys.
-    system = { destination: primary, destinations: dests, choice: !!choice, revealed: !!revealed };
+    // Schema unreadable — emit plural first plus the singular shim; a DataModel
+    // drops keys it doesn't declare, so the extra key is harmless.
+    system = { destinations: dests, destination: primary, choice: wantChoice, revealed: !!revealed };
   }
 
   return { name: "Teleport", type: "teleportToken", system, disabled: false, flags: {} };

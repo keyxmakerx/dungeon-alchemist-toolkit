@@ -18,14 +18,13 @@ import { getSceneLevels } from "../levels.js";
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 /**
- * Best-effort "view this level" across the v14 nav surface. Wrapped by callers
- * in try/catch; if no documented path is found it silently no-ops (pan + control
- * still work). ⚠️ Confirm the live v14 level-view API and pin this down.
+ * "View this level" via the documented v14 nav surface: SceneNavigation#viewLevel,
+ * else Scene#view({ level }). Wrapped by callers in try/catch; if neither exists
+ * on the running build it silently no-ops (pan + control still work).
  */
 async function viewLevel(levelId) {
   if (!levelId) return;
-  const nav = ui?.nav ?? globalThis.ui?.nav;
-  if (typeof nav?.viewLevel === "function") return nav.viewLevel(levelId);
+  if (typeof ui?.nav?.viewLevel === "function") return ui.nav.viewLevel(levelId);
   if (typeof canvas?.scene?.view === "function") return canvas.scene.view({ level: levelId });
 }
 

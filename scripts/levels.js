@@ -28,10 +28,11 @@ export function getSceneLevels(scene) {
 }
 
 /**
- * Best-effort detection of the level the user is currently viewing.
- * Foundry v14 surfaces the active level through several candidate properties
- * depending on the canvas pipeline state — we probe each in order and fall
- * back to `scene.initialLevel` then to the bottom-most level.
+ * Detect the level the user is currently viewing, via the documented v14
+ * surfaces: the canvas's viewed level, then the user's, then the scene's
+ * configured initial level, then the bottom-most floor. Each is probed
+ * defensively — a build that lacks one falls through to the next, so the worst
+ * case is the bottom-level fallback (the prior effective behavior, never a crash).
  *
  * @param {Scene} scene
  * @returns {string|null} Level `_id`, or null if the scene has no levels.
@@ -41,16 +42,20 @@ export function getCurrentLevelId(scene) {
   const levels = getSceneLevels(scene);
   const validIds = new Set(levels.map((l) => l._id));
   const candidates = [
-    canvas?.scene?.activeLevel?._id,
-    canvas?.environment?.activeLevel?._id,
-    canvas?.activeLevel?._id,
-    game.user?.activeLevel,
+    canvas?.level?.id ?? canvas?.level?._id,
+    canvas?._viewOptions?.level,
+    game.user?.viewedLevel,
     scene.initialLevel
   ];
   // Only accept a candidate that is actually a level on this scene; a stale/initial
-  // id (e.g. a deleted level) would otherwise mislead the starting-level dropdown.
+  // id (e.g. a deleted level) would otherwise mislead callers.
   for (const c of candidates) {
     if (typeof c === "string" && validIds.has(c)) return c;
+  }
+  // Diagnosable from the console without a live debugger: if a multi-level scene
+  // can't resolve the viewed level, the v14 accessor name differs on this build.
+  if (levels.length > 1) {
+    console.debug("[DA Toolkit] getCurrentLevelId: no live viewed-level match; falling back to the bottom floor. If stairs bind to the wrong floor, the v14 viewed-level accessor differs on this build.");
   }
   return levels[0]?._id ?? null;
 }
