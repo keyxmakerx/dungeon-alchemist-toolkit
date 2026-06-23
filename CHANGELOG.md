@@ -12,8 +12,11 @@ live v14 confirmation; all changes are node-checked and degrade safely.
 ## [Fixed]
 - Overlays redraw on a toolkit-driven level change; region hooks are scene-scoped and debounced. `regionCenter` handles non-rectangle shapes. Bounded the import subfolder search; `regionUuid` no longer returns a broken reference.
 
+## [Added]
+- Localized all toasts and dialog titles/buttons via `game.i18n` (`lang/en.json`), so the module is translation-ready. (Handlebars **template** labels remain English — the last i18n piece.)
+
 ## [Deferred]
-- Importer tabs → native ApplicationV2 `static TABS` (a moat rewrite that needs live verification), the full i18n toast sweep, and retiring/folding the legacy `AddRegion` `changeLevel` tool.
+- Importer tabs → native ApplicationV2 `static TABS` (a moat rewrite that needs live verification) and retiring/folding the legacy `AddRegion` `changeLevel` tool.
 
 # 0.2.0
 
