@@ -1,17 +1,19 @@
 /**
- * Player-facing portal labels (the Stairways-style affordance).
+ * Player-facing portal labels (a sight-gated hint, Stairways-style).
  *
- * For a *player* (not the GM), shows a hoverable "Stairs" label over a portal
- * when their own token can SEE it (line of sight) and is within range; clicking
- * the label uses the stair (we nudge the token onto the region so the native
- * teleportToken behavior fires its confirm + move). Hidden (trap) regions never
- * show a label.
+ * For a *player* (not the GM), shows a "Stairs" hint label over a portal when
+ * their own token can SEE it (line of sight) and is within range. The label is a
+ * HINT, not an actuator: using a stair is the native behavior — walk the token
+ * onto the region and the native teleportToken fires its confirm + move. (A
+ * client-side token move issued by a player is unreliable and violates GM
+ * authority, so it was removed; a real GM-relayed click-to-use is deferred to a
+ * future phase behind a confirmed transport.) Hidden (trap) regions never show a
+ * label.
  *
- * ⚠️ Live-v14 / best-effort: this leans on `canvas.visibility.testVisibility`
- * (LOS), `canvas.interface`/`canvas.controls` (a PIXI parent), PIXI v7 Graphics,
- * and owned-token detection — all feature-detected and try/catch-wrapped. If a
- * piece isn't available it simply shows no label (the core walk-in stairs still
- * work). Confirm the LOS call + the click-to-use nudge on a live world and tune.
+ * ⚠️ Live-v14 / best-effort: leans on `canvas.visibility.testVisibility` (LOS),
+ * `canvas.interface`/`canvas.controls` (a PIXI parent), PIXI v7 Graphics, and
+ * owned-token detection — all feature-detected and try/catch-wrapped. If a piece
+ * isn't available it simply shows no label (native walk-in stairs still work).
  */
 
 import { getScenePortals, regionCenter, regionLevelId } from "./portal-core.js";
@@ -55,27 +57,12 @@ function ensureLayer() {
   return _layer;
 }
 
-/** Nudge the token onto the region so native teleportToken fires (confirm + move). */
-async function usePortal(region, token) {
-  try {
-    const c = regionCenter(region);
-    if (!c || !token?.document) return;
-    const gs = canvas?.scene?.grid?.size ?? 100;
-    const w = (token.document.width ?? 1) * gs;
-    const h = (token.document.height ?? 1) * gs;
-    await token.document.update({ x: Math.round(c.x - w / 2), y: Math.round(c.y - h / 2) });
-  } catch (err) {
-    ui.notifications?.warn?.("Couldn't use that stair — try walking onto it.");
-    console.warn("[DA Toolkit] usePortal failed:", err);
-  }
-}
-
-function buildLabel(center, text, region, token) {
+function buildLabel(center, text) {
   const cont = new PIXI.Container();
   cont.x = center.x;
   cont.y = center.y;
   cont.eventMode = "static";
-  cont.cursor = "pointer";
+  cont.cursor = "help";
 
   const label = new PIXI.Text(String(text), {
     fontFamily: "Signika, sans-serif",
@@ -100,7 +87,7 @@ function buildLabel(center, text, region, token) {
   cont.on("pointerout", () => cont.scale.set(1));
   cont.on("pointerdown", (ev) => {
     ev?.stopPropagation?.();
-    usePortal(region, token);
+    ui.notifications?.info?.("Walk your token onto the stairs to use them.");
   });
   return cont;
 }
@@ -129,7 +116,7 @@ export function refreshPlayerPortalLabels() {
       if (!c) continue;
       if (Math.hypot(c.x - tc.x, c.y - tc.y) > range) continue;      // proximity cull first
       if (!hasSight(token, c)) continue;                              // then the LOS test
-      layer.addChild(buildLabel(c, portal.label || region.name || "Stairs", region, token));
+      layer.addChild(buildLabel(c, portal.label || region.name || "Stairs"));
     }
   } catch (err) {
     console.warn("[DA Toolkit] player portal labels failed (non-fatal):", err);
