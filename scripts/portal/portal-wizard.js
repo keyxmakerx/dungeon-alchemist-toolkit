@@ -9,7 +9,8 @@
  */
 
 import { createLinkedStairs, linkExistingRegions, getPortalFlag } from "./portal-core.js";
-import { getSceneLevels, getCurrentLevelId, pickCanvasRectangle } from "../region-adder.js";
+import { getSceneLevels, getCurrentLevelId } from "../levels.js";
+import { pickCanvasRectangle } from "../canvas-pick.js";
 
 /**
  * Small DialogV2 to choose the portal type / label / directionality before

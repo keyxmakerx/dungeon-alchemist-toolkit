@@ -8,28 +8,14 @@
 import {
   getPortalLinkGroups,
   getScenePortals,
-  deletePortalLink
+  deletePortalLink,
+  regionCenter,
+  regionLevelId
 } from "./portal-core.js";
 import { addStairsInteractive } from "./portal-wizard.js";
-import { getSceneLevels } from "../region-adder.js";
+import { getSceneLevels } from "../levels.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
-
-/** First level id a region is bound to (portals are single-level). */
-function regionLevelId(region) {
-  const lv = region?.levels;
-  if (!lv) return null;
-  if (lv instanceof Set) return [...lv][0] ?? null;
-  if (Array.isArray(lv)) return lv[0] ?? null;
-  return [...(lv.values?.() ?? [])][0] ?? null;
-}
-
-/** Center point of a region's first rectangle shape (for panning). */
-function regionCenter(region) {
-  const s = region?.shapes?.[0];
-  if (!s || !Number.isFinite(s.x) || !Number.isFinite(s.width)) return null;
-  return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
-}
 
 /**
  * Best-effort "view this level" across the v14 nav surface. Wrapped by callers

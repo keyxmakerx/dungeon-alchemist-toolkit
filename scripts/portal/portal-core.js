@@ -19,7 +19,7 @@
  */
 
 import { MODULE_ID, PORTAL_FLAG, FLOOR_HEIGHT } from "../constants.js";
-import { getSceneLevels } from "../region-adder.js";
+import { getSceneLevels } from "../levels.js";
 
 /**
  * Mode presets — map the friendly mode to native `teleportToken` config + look.

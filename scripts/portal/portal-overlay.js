@@ -17,7 +17,7 @@
  */
 
 import { getPortalLinkGroups, regionCenter, regionLevelId } from "./portal-core.js";
-import { getCurrentLevelId } from "../region-adder.js";
+import { getCurrentLevelId } from "../levels.js";
 
 /** @type {PIXI.Graphics|null} */
 let _overlay = null;

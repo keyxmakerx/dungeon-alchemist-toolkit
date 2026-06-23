@@ -15,7 +15,7 @@
  */
 
 import { getScenePortals, regionCenter, regionLevelId } from "./portal-core.js";
-import { getCurrentLevelId } from "../region-adder.js";
+import { getCurrentLevelId } from "../levels.js";
 
 /** @type {PIXI.Container|null} */
 let _layer = null;
