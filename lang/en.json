@@ -1,0 +1,14 @@
+{
+  "DAT.Controls.Group": "Dungeon Alchemist",
+  "DAT.Controls.Import": "Import DA Folder",
+  "DAT.Controls.AddStairs": "Add Stairs / Portal",
+  "DAT.Controls.Manager": "Stairs Manager",
+
+  "DAT.Hub.Title": "Dungeon Alchemist Toolkit",
+  "DAT.Hub.Intro": "Import a Dungeon Alchemist export and manage stairs/portals between levels.",
+  "DAT.Hub.MenuLabel": "Open the Toolkit",
+  "DAT.Hub.MenuHint": "Open the Dungeon Alchemist Toolkit hub (import + stairs tools).",
+  "DAT.Hub.ImportHint": "Turn a folder of DA floor exports into one native multi-level Scene.",
+  "DAT.Hub.AddStairsHint": "Place a linked entrance/exit on the canvas (stairs, teleport, or trap).",
+  "DAT.Hub.ManagerHint": "List, find, edit, and delete this scene's stairs and portals."
+}

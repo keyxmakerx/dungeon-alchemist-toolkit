@@ -1,11 +1,32 @@
-/* ── Scenes directory sidebar button ─────────────────────────── */
-.da-importer-sidebar-btn,
-.da-region-sidebar-btn {
-  width: calc(100% - 16px);
-  margin: 0px 8px 0;
+/* ── Toolkit hub launcher ────────────────────────────────────── */
+#da-toolkit-hub .window-content {
+  background: var(--color-cool-5, #1a1a2e);
 }
-.da-region-sidebar-btn {
-  margin-top: 4px;
+.da-hub { padding: 0.25rem 0.5rem 0.5rem; }
+.da-hub-intro {
+  margin: 0.25rem 0 0.6rem;
+  color: var(--color-text-light-6, #aaa);
+}
+.da-hub-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+.da-hub-btn {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.6rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--color-border-light-primary, #555);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+.da-hub-btn:hover { border-color: var(--color-text-hyperlink, #88c0ff); }
+.da-hub-btn > i { grid-row: 1 / span 2; font-size: 1.15rem; text-align: center; }
+.da-hub-btn-label { font-weight: 600; }
+.da-hub-btn-hint {
+  font-size: var(--font-size-12, 12px);
+  color: var(--color-text-light-6, #aaa);
 }
 
 /* Solid background — prevents the window content from being see-through */

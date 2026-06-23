@@ -24,7 +24,7 @@ This module reads all pairs in a folder, parses each JSON for wall, door, and li
 
 ### Importer Dialog (`DA.Importer()`)
 
-The dialog is tabbed and opens when you call `DA.Importer()` from a macro or from the **DA Level Importer** button injected in the Scenes directory sidebar.
+The dialog is tabbed. Open it from the **Dungeon Alchemist** group in the scene controls (left canvas toolbar), from the toolkit **hub** (the *Open the Toolkit* button in Module Settings, or `DA.open()`), or by calling `DA.Importer()` from a macro.
 
 #### Scene Defaults tab
 - **Copy Media to World** toggle (off by default): copies all floor media (images *and* videos) into `worlds/<your-world>/da-imported/<map-name>/` and renames them to `kebab-case` for portability.
@@ -42,25 +42,29 @@ The dialog is tabbed and opens when you call `DA.Importer()` from a macro or fro
 - **Large-media warning**: floors whose media exceeds Foundry's ~50 MB recommendation for animated maps are flagged with an amber outline (hover the thumbnail for the exact size), plus a summary notification. Sizes are probed for local sources only.
 - **Elevation validation**: import is blocked with a message if any level's bottom is ≥ its top.
 
-### Region Tool (`DA.AddRegion()`)
+### Stairs & Portals (`DA.AddStairs()`, `DA.StairsManager()`)
 
-Opens a dialog to configure a staircase or elevator transit region spanning multiple consecutive levels. Select a starting level, specify how many levels above and below should share the region, then **click on the canvas to drop a one-square region — or drag to draw a larger footprint** (a live preview follows the cursor). A single region document is created and bound to all target levels using native `changeLevel` behavior. Once placed, you can move or resize the region with Foundry's native Region tools.
+Create linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them; modes are **stairs** (cross-level, with a confirm), **teleport** (same map), and **trap** (hidden, silent, one-way). The **Stairs Manager** lists every link on the scene to find, edit, or delete it. `DA.LinkStairs()` links two Regions you've already selected.
+
+> **Status:** built on native v14 and hardened, but pending live confirmation in a running v14 world (there is no Foundry runtime in CI). See `docs/STAIRS-TESTING.md`.
+
+### Region Tool (`DA.AddRegion()`) — legacy
+
+> Superseded by the stairs/portal tools above and no longer has a toolbar button; still callable via `DA.AddRegion()`. Opens a dialog to configure a staircase or elevator transit region spanning multiple consecutive levels using the native `changeLevel` behavior. Once placed, move or resize it with Foundry's native Region tools.
 
 ## Usage
 
-Open the importer from the Scenes directory sidebar button or call from a macro:
+Open the toolkit from the **Dungeon Alchemist** scene-controls group, the **hub** (`DA.open()` or the *Open the Toolkit* button in Module Settings), or call the API directly. The API lives at `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to `DA` for convenience:
 
 ```js
-DA.Importer();
+DA.open();           // unified hub (Import / Add Stairs / Stairs Manager)
+DA.Importer();       // open the importer dialog
+DA.AddStairs();      // place a linked entrance + exit
+DA.StairsManager();  // browse/edit this scene's stairs
+DA.AddRegion();      // legacy multi-level changeLevel region
 ```
 
 Select the folder exported by Dungeon Alchemist, configure the tabs, and click Import. The module creates a single Scene with one native Scene Level per floor, with walls, doors, and lights already bound to their respective levels.
-
-To add a staircase/elevator region to an existing scene:
-
-```js
-DA.AddRegion()
-```
 
 # 📦 Installation
 
