@@ -18,6 +18,7 @@
 
 import { getScenePortals, regionCenter, regionLevelId } from "./portal-core.js";
 import { getCurrentLevelId } from "../levels.js";
+import { t } from "../util.js";
 
 /** @type {PIXI.Container|null} */
 let _layer = null;
@@ -87,7 +88,7 @@ function buildLabel(center, text) {
   cont.on("pointerout", () => cont.scale.set(1));
   cont.on("pointerdown", (ev) => {
     ev?.stopPropagation?.();
-    ui.notifications?.info?.("Walk your token onto the stairs to use them.");
+    ui.notifications?.info?.(t("DAT.Stairs.UseHint"));
   });
   return cont;
 }

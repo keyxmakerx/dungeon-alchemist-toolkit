@@ -16,7 +16,7 @@
  */
 
 import { FLOOR_HEIGHT } from "./constants.js";
-import { requireGM } from "./util.js";
+import { requireGM, t } from "./util.js";
 
 const FLOOR_RE = /-_(\d+)$/;
 
@@ -143,25 +143,25 @@ async function _copyMedia(srcUrl, destFolder, kebabStem, ext) {
  * @returns {Promise<Scene|null>}                        The created Scene, or null on abort.
  */
 export async function importFolder({ source, path, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
-  if (!requireGM("DA Importer: only a GM can import scenes.")) return null;
+  if (!requireGM(t("DAT.Importer.GMOnly"))) return null;
   const FilePicker = foundry.applications.apps.FilePicker.implementation;
 
   let listing;
   try {
     listing = await FilePicker.browse(source, path);
   } catch (err) {
-    ui.notifications.error(`DA Importer: cannot browse "${path}" (${err.message})`);
+    ui.notifications.error(t("DAT.Importer.BrowseFailed", { path, error: err.message }));
     return null;
   }
 
   const pairs = collectFloorPairs(listing.files);
   console.log(`[DA Importer] found ${pairs.length} floor pair(s):`, pairs.map((p) => p.stem));
   if (pairs.length === 0) {
-    ui.notifications.warn("DA Importer: no Dungeon Alchemist floor pairs (image/video + .json) found in folder.");
+    ui.notifications.warn(t("DAT.Importer.NoPairs"));
     return null;
   }
   if (pairs.orphans?.length) {
-    ui.notifications.warn(`DA Importer: skipped ${pairs.orphans.length} unpaired file(s) — an image/video with no matching .json, or vice-versa (see console for the list).`);
+    ui.notifications.warn(t("DAT.Importer.Orphans", { count: pairs.orphans.length }));
   }
 
   // Heuristic: a folder should hold a single map. If the stems resolve to more
@@ -169,7 +169,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   // otherwise be silently merged into one scene.
   const mapStems = distinctMapStems(pairs);
   if (mapStems.length > 1) {
-    ui.notifications.warn(`DA Importer: this folder appears to contain ${mapStems.length} maps (${mapStems.join(", ")}). Each folder should hold only one map; floors from different maps will be mixed into one scene.`);
+    ui.notifications.warn(t("DAT.Importer.MixedMaps", { count: mapStems.length, maps: mapStems.join(", ") }));
   }
 
   let floors;
@@ -180,7 +180,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
       return { ...p, data: await res.json() };
     }));
   } catch (err) {
-    ui.notifications.error(`DA Importer: failed to load JSON (${err.message})`);
+    ui.notifications.error(t("DAT.Importer.JsonFailed", { error: err.message }));
     return null;
   }
 
@@ -196,7 +196,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
     try {
       destFolder = await _ensureUniqueSubfolder(kebabBase);
     } catch (err) {
-      ui.notifications.error(`DA Importer: could not create destination folder (${err.message})`);
+      ui.notifications.error(t("DAT.Importer.FolderFailed", { error: err.message }));
       return null;
     }
 
@@ -213,7 +213,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
         // when building levels[] below.
         f.media = await _copyMedia(originalUrl, destFolder, kebabFilename, ext);
       } catch (err) {
-        ui.notifications.error(`DA Importer: failed to copy media "${origFilename}" (${err.message})`);
+        ui.notifications.error(t("DAT.Importer.CopyFailed", { name: origFilename, error: err.message }));
         return null;
       }
     }
@@ -231,7 +231,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   const sceneHeight = first.height;
   const sceneGrid = first.grid;
   if (![sceneWidth, sceneHeight, sceneGrid].every((v) => Number.isFinite(v) && v > 0)) {
-    ui.notifications.error(`DA Importer: the first floor's data has invalid map dimensions — width/height/grid must be positive numbers (got width=${sceneWidth}, height=${sceneHeight}, grid=${sceneGrid}).`);
+    ui.notifications.error(t("DAT.Importer.BadDimensions", { width: sceneWidth, height: sceneHeight, grid: sceneGrid }));
     return null;
   }
   const scenePadding = Number.isFinite(first.padding) ? Math.min(Math.max(first.padding, 0), 0.5) : 0.25;
@@ -342,12 +342,12 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   try {
     scene = await Scene.create(sceneData);
   } catch (err) {
-    ui.notifications.error(`DA Importer: Scene.create failed (${err.message})`);
+    ui.notifications.error(t("DAT.Importer.SceneCreateFailed", { error: err.message }));
     console.error(err);
     return null;
   }
   if (!scene) {
-    ui.notifications.error("DA Importer: Scene.create returned no document — check the console for validation errors.");
+    ui.notifications.error(t("DAT.Importer.SceneCreateEmpty"));
     return null;
   }
 
@@ -355,7 +355,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   const createdWalls = scene.walls?.size ?? 0;
   const createdLights = scene.lights?.size ?? 0;
   console.log(`[DA Importer] scene created: ${createdLevels} levels, ${createdWalls} walls, ${createdLights} lights`);
-  ui.notifications.info(`DA Importer: created "${scene.name}" — ${createdLevels} level(s), ${createdWalls} wall(s), ${createdLights} light(s).`);
+  ui.notifications.info(t("DAT.Importer.Created", { name: scene.name, levels: createdLevels, walls: createdWalls, lights: createdLights }));
   return scene;
 }
 

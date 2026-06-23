@@ -15,7 +15,7 @@
 import { createLinkedStairs, linkExistingRegions, getPortalFlag } from "./portal-core.js";
 import { getSceneLevels, getCurrentLevelId, viewLevel } from "../levels.js";
 import { pickCanvasRectangle, drawGhostRect } from "../canvas-pick.js";
-import { requireGM } from "../util.js";
+import { requireGM, t } from "../util.js";
 import { PlacementBanner } from "./portal-banner.js";
 
 /** Guards against starting a second guided placement while one is in progress. */
@@ -46,10 +46,10 @@ async function promptStairsOptions() {
   </div>`;
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: "New Stairs / Portal" },
+      window: { title: t("DAT.Stairs.NewTitle") },
       content,
       ok: {
-        label: "Place →",
+        label: t("DAT.Stairs.BtnPlace"),
         icon: "fas fa-stairs",
         callback: (_event, button) => {
           const form = button?.form;
@@ -76,13 +76,13 @@ async function promptStairsOptions() {
  */
 export async function addStairsInteractive(scene = canvas?.scene) {
   if (!requireGM()) return;
-  if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
+  if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
   if (!getSceneLevels(scene).length) {
-    ui.notifications.warn("DA Stairs: this scene has no Levels — import or add levels first.");
+    ui.notifications.warn(t("DAT.Stairs.NoLevels"));
     return;
   }
   const opts = await promptStairsOptions();
-  if (!opts) { ui.notifications.info("DA Stairs: cancelled."); return; }
+  if (!opts) { ui.notifications.info(t("DAT.Stairs.Cancelled")); return; }
   await startAddStairs(scene, opts);
 }
 
@@ -101,14 +101,14 @@ export async function addStairsInteractive(scene = canvas?.scene) {
  */
 export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true } = {}) {
   if (!requireGM()) return;
-  if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
+  if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
   const levels = getSceneLevels(scene);
   if (!levels.length) {
-    ui.notifications.warn("DA Stairs: this scene has no Levels — import or add levels first.");
+    ui.notifications.warn(t("DAT.Stairs.NoLevels"));
     return;
   }
   if (_placementActive) {
-    ui.notifications.warn("DA Stairs: a placement is already in progress.");
+    ui.notifications.warn(t("DAT.Stairs.InProgress"));
     return;
   }
   _placementActive = true;
@@ -153,9 +153,9 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       try { await viewLevel(captured[idx].levelId); } catch (_) { /* non-fatal */ }
 
       const title = isEntrance
-        ? `New ${mode} "${label}" — Step 1 of 2: place the ENTRANCE`
-        : `New ${mode} "${label}" — Step 2 of 2: place the EXIT`;
-      const hint = "Pick the floor, then click (or drag) on the canvas to place. Esc or Cancel to stop.";
+        ? t("DAT.Stairs.StepEntrance", { mode, label })
+        : t("DAT.Stairs.StepExit", { mode, label });
+      const hint = t("DAT.Stairs.StepHint");
       banner.setStep(title, hint);
       banner.showLevelPicker(levels, captured[idx].levelId, isEntrance ? "Entrance floor" : "Exit floor");
       banner.showBack(!isEntrance);
@@ -165,7 +165,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       try { removeGhost?.(); } catch (_) { /* ignore */ }
       removeGhost = (!isEntrance && captured[0].rect) ? drawGhostRect(captured[0].rect) : null;
 
-      if (!banner.el) ui.notifications.info(`DA Stairs: ${title}. ${hint}`);
+      if (!banner.el) ui.notifications.info(`${title} — ${hint}`);
 
       currentCtrl = new AbortController();
       goBack = false;
@@ -176,15 +176,15 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
         rect = null;
       }
 
-      if (flowCancelled) { ui.notifications.info("DA Stairs: cancelled."); cleanup(); return; }
+      if (flowCancelled) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
       if (goBack) { step = Math.max(0, step - 1); continue; }
-      if (!rect) { ui.notifications.info("DA Stairs: cancelled."); cleanup(); return; }
+      if (!rect) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
 
       captured[idx].rect = rect;
       step += 1;
     }
   } catch (err) {
-    ui.notifications.error(`DA Stairs: placement failed (${err.message})`);
+    ui.notifications.error(t("DAT.Stairs.PlacementFailed", { error: err.message }));
     console.error(err);
     cleanup();
     return;
@@ -198,10 +198,11 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
         { x: captured[1].rect.x, y: captured[1].rect.y, width: captured[1].rect.width, height: captured[1].rect.height, levelId: captured[1].levelId }
       ]
     });
+    const count = regions?.length ?? 0;
     const sameLevel = captured[0].levelId && captured[0].levelId === captured[1].levelId;
-    ui.notifications.info(`DA Stairs: created ${regions?.length ?? 0} linked region(s)${sameLevel ? " (same level — teleport)" : ""}.`);
+    ui.notifications.info(t(sameLevel ? "DAT.Stairs.CreatedTeleport" : "DAT.Stairs.Created", { count }));
   } catch (err) {
-    ui.notifications.error(`DA Stairs: failed to create (${err.message})`);
+    ui.notifications.error(t("DAT.Stairs.CreateFailed", { error: err.message }));
     console.error(err);
   } finally {
     cleanup();
@@ -220,7 +221,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
  */
 export async function startLinkRegions(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true } = {}) {
   if (!requireGM()) return;
-  if (!scene) { ui.notifications.warn("DA Stairs: no active scene."); return; }
+  if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
 
   const controlled = canvas?.regions?.controlled ?? [];
   if (controlled.length === 2) {
@@ -228,23 +229,20 @@ export async function startLinkRegions(scene = canvas?.scene, { mode = "stairs",
     await _link(a, b, { mode, label, twoWay });
     return;
   }
-  ui.notifications.warn(
-    "DA Stairs (link): select exactly two Regions on the Regions layer first " +
-    "(click one, Shift-click the other), then run this again."
-  );
+  ui.notifications.warn(t("DAT.Stairs.LinkSelectTwo"));
 }
 
 async function _link(regionA, regionB, opts) {
   // Don't silently re-link regions that are already portals; warn instead.
   if (getPortalFlag(regionA) || getPortalFlag(regionB)) {
-    ui.notifications.warn("DA Stairs: one of those regions is already a portal — unlink it first (use the Stairs Manager).");
+    ui.notifications.warn(t("DAT.Stairs.AlreadyPortal"));
     return;
   }
   try {
     await linkExistingRegions({ regionA, regionB, ...opts });
-    ui.notifications.info("DA Stairs: linked the two selected regions.");
+    ui.notifications.info(t("DAT.Stairs.Linked"));
   } catch (err) {
-    ui.notifications.error(`DA Stairs: link failed (${err.message})`);
+    ui.notifications.error(t("DAT.Stairs.LinkFailed", { error: err.message }));
     console.error(err);
   }
 }

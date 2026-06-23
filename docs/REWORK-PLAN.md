@@ -1,11 +1,13 @@
 # Rework Plan — Dungeon Alchemist Toolkit (v14)
 
-> **Status: PROPOSAL — awaiting maintainer sign-off.** This synthesizes the three read-only
-> audits (`docs/audits/importer-audit.md` IMP-01..13, `docs/audits/stairs-audit.md` S-01..20,
-> `docs/audits/integration-audit.md` F-1..20) into one sequenced rework, governed by
-> `docs/STRATEGY.md`. Nothing here is implemented yet. Decisions tagged **[OPEN]** need a
-> maintainer call (see *Open decisions*). Items tagged **[NEEDS-LIVE]** cannot be fully
-> confirmed without a running v14 world and are designed to degrade safely if the guess is wrong.
+> **Status: IMPLEMENTED (phases 0–7, 9, and the safe parts of 10).** Shipped as **v0.2.0**
+> (phases 0–4) and **v0.3.0** (phases 5–7, 9, hygiene + the i18n toast/dialog sweep).
+> **Deferred, pending a live v14 world or a product decision:** **Phase 8** (importer → native
+> `static TABS` — a moat rewrite the docs say to do WITH live verification), retiring/folding
+> the legacy `AddRegion` `changeLevel` tool, and localizing the Handlebars **template** labels
+> (only code-level toasts + dialog chrome are localized so far). Synthesizes the three read-only
+> audits (`docs/audits/`), governed by `docs/STRATEGY.md`. Items tagged **[NEEDS-LIVE]** degrade
+> safely if the guess is wrong.
 
 ---
 

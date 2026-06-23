@@ -8,6 +8,8 @@
  * name can't inject markup.
  */
 
+import { t } from "../util.js";
+
 export class PlacementBanner {
   constructor() {
     /** @type {HTMLElement|null} */
@@ -30,8 +32,8 @@ export class PlacementBanner {
           <select class="da-place-level"></select>
         </label>
         <span class="da-place-spacer"></span>
-        <button type="button" class="da-place-back" hidden>Back</button>
-        <button type="button" class="da-place-cancel">Cancel</button>
+        <button type="button" class="da-place-back" hidden>${t("DAT.Stairs.BtnBack")}</button>
+        <button type="button" class="da-place-cancel">${t("DAT.Stairs.BtnCancel")}</button>
       </div>`;
     document.body.appendChild(el);
     this.el = el;

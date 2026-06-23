@@ -15,6 +15,7 @@ import {
 } from "./portal-core.js";
 import { addStairsInteractive } from "./portal-wizard.js";
 import { getSceneLevels, viewLevel } from "../levels.js";
+import { t } from "../util.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -23,7 +24,7 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     id: "da-stairs-manager",
     tag: "div",
     classes: ["da-stairs-manager-app"],
-    window: { title: "DA Stairs Manager", resizable: true },
+    window: { title: "DAT.Stairs.ManagerTitle", resizable: true },
     position: { width: 480, height: "auto" },
     actions: {
       goto: DAStairsManager.#onGoto,
@@ -70,7 +71,7 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onGoto(_event, target) {
     const scene = canvas?.scene;
     const region = scene?.regions?.get(target.dataset.regionId);
-    if (!region) { ui.notifications.warn("DA Stairs: that region no longer exists."); return; }
+    if (!region) { ui.notifications.warn(t("DAT.Stairs.GoneRegion")); return; }
     try { await viewLevel(regionLevelId(region)); } catch (_) { /* non-fatal */ }
     const c = regionCenter(region);
     if (c && typeof canvas?.animatePan === "function") canvas.animatePan({ x: c.x, y: c.y, duration: 250 });
@@ -89,7 +90,7 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const linkId = target.dataset.linkId;
     const scene = canvas?.scene;
     const entries = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId);
-    if (!entries.length) { ui.notifications.warn("DA Stairs: that link no longer exists."); return; }
+    if (!entries.length) { ui.notifications.warn(t("DAT.Stairs.GoneLink")); return; }
     const entrance = entries.find((e) => e.portal?.role === "entrance") ?? entries[0];
     const others = entries.filter((e) => e !== entrance);
     const regions = [entrance.region, ...others.map((e) => e.region)];
@@ -116,11 +117,11 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
       </div>`;
 
     const choice = await foundry.applications.api.DialogV2.wait({
-      window: { title: "Edit Stairs / Portal" },
+      window: { title: t("DAT.Stairs.EditTitle") },
       content,
       buttons: [
         {
-          action: "save", label: "Save", icon: "fas fa-check", default: true,
+          action: "save", label: t("DAT.Stairs.BtnSave"), icon: "fas fa-check", default: true,
           callback: (_e, btn) => {
             const f = btn?.form;
             return {
@@ -131,8 +132,8 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
             };
           }
         },
-        { action: "sheet", label: "Open Region Sheet", icon: "fas fa-pen-to-square", callback: () => ({ action: "sheet" }) },
-        { action: "cancel", label: "Cancel", icon: "fas fa-xmark", callback: () => ({ action: "cancel" }) }
+        { action: "sheet", label: t("DAT.Stairs.BtnSheet"), icon: "fas fa-pen-to-square", callback: () => ({ action: "sheet" }) },
+        { action: "cancel", label: t("DAT.Stairs.BtnCancel"), icon: "fas fa-xmark", callback: () => ({ action: "cancel" }) }
       ],
       rejectClose: false
     }).catch(() => null);
@@ -141,9 +142,9 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (choice.action === "sheet") { entrance.region.sheet?.render(true); return; }
     try {
       await bindPortals({ regions, mode: choice.mode, label: choice.label, twoWay: choice.twoWay });
-      ui.notifications.info("DA Stairs: updated.");
+      ui.notifications.info(t("DAT.Stairs.Updated"));
     } catch (err) {
-      ui.notifications.error(`DA Stairs: update failed (${err.message})`);
+      ui.notifications.error(t("DAT.Stairs.UpdateFailed", { error: err.message }));
       console.error(err);
     }
     this.render();
@@ -154,7 +155,7 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const linkId = target.dataset.linkId;
     const scene = canvas?.scene;
     const ok = await foundry.applications.api.DialogV2.confirm({
-      window: { title: "Delete stairs?" },
+      window: { title: t("DAT.Stairs.DeleteTitle") },
       content: "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
       rejectClose: false,
       modal: true
@@ -162,9 +163,9 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!ok) return;
     try {
       await deletePortalLink(scene, linkId);
-      ui.notifications.info("DA Stairs: deleted.");
+      ui.notifications.info(t("DAT.Stairs.Deleted"));
     } catch (err) {
-      ui.notifications.error(`DA Stairs: delete failed (${err.message})`);
+      ui.notifications.error(t("DAT.Stairs.DeleteFailed", { error: err.message }));
       console.error(err);
     }
     this.render();

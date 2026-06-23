@@ -4,6 +4,7 @@ import {
   pickCanvasRectangle,
   createMultiLevelRegion
 } from "./region-adder.js";
+import { t } from "./util.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -25,7 +26,7 @@ export class DARegionAdderDialog extends HandlebarsApplicationMixin(ApplicationV
       closeOnSubmit: false
     },
     window: {
-      title: "Add Multi-Level Region",
+      title: "DAT.Region.Title",
       resizable: false
     },
     position: {
@@ -198,31 +199,31 @@ export class DARegionAdderDialog extends HandlebarsApplicationMixin(ApplicationV
   static async #onPickLocation(_event, _target) {
     const scene = canvas.scene;
     if (!scene) {
-      ui.notifications.warn("DA Region: no active scene.");
+      ui.notifications.warn(t("DAT.Region.NoScene"));
       return;
     }
     const levelIds = this.#computeTargetLevelIds();
     if (levelIds.length === 0) {
-      ui.notifications.warn("DA Region: select at least one target level.");
+      ui.notifications.warn(t("DAT.Region.NoTarget"));
       return;
     }
 
     await this.close();
-    ui.notifications.info("Click to drop a region, or drag to draw its footprint. Press Escape to cancel.");
+    ui.notifications.info(t("DAT.Region.PickHint"));
 
     let rect;
     try {
       rect = await pickCanvasRectangle();
     } catch (err) {
-      ui.notifications.info("DA Region: placement cancelled.");
+      ui.notifications.info(t("DAT.Region.Cancelled"));
       return;
     }
 
     try {
       await createMultiLevelRegion({ scene, x: rect.x, y: rect.y, width: rect.width, height: rect.height, levelIds });
-      ui.notifications.info(`DA Region: created across ${levelIds.length} level(s).`);
+      ui.notifications.info(t("DAT.Region.Created", { count: levelIds.length }));
     } catch (err) {
-      ui.notifications.error(`DA Region: failed to create (${err.message})`);
+      ui.notifications.error(t("DAT.Region.CreateFailed", { error: err.message }));
       console.error(err);
     }
   }

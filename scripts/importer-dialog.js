@@ -1,6 +1,6 @@
 import { importFolder, collectFloorPairs, isVideoPath } from "./da-importer.js";
 import { FLOOR_HEIGHT, MODULE_ID, SETTING_IMPORTER_DEFAULTS, MEDIA_SIZE_WARN_BYTES } from "./constants.js";
-import { requireGM } from "./util.js";
+import { requireGM, t } from "./util.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -118,7 +118,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         // (a default only — overridable under "Show advanced columns").
         const roofs = this._floorPairs.filter(p => /\broof/i.test(p.stem));
         if (roofs.length) {
-          ui.notifications.info(`DA Importer: detected ${roofs.length} roof layer(s) and pre-marked them as Roof — ${roofs.map(p => p.stem).join(", ")}. Use "Show advanced columns" to review.`);
+          ui.notifications.info(t("DAT.Importer.RoofDetected", { count: roofs.length, names: roofs.map(p => p.stem).join(", ") }));
         }
         this._populateLevelsTab();
         this._probeMediaSizes(source);
@@ -349,7 +349,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
     if (gen === this._sizeProbeGen && oversize.length) {
       // Report by filename, not index — a reorder during the probe would stale indices.
-      ui.notifications.warn(`DA Importer: ${oversize.length} floor(s) exceed ~50 MB (${oversize.join(", ")}). Large videos slow scene loads; consider importing referenced-in-place (Copy Media off).`);
+      ui.notifications.warn(t("DAT.Importer.Oversize", { count: oversize.length, names: oversize.join(", ") }));
     }
   }
 
@@ -640,11 +640,11 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
   }
 
   static async #onImport(_event, _target) {
-    if (!requireGM("DA Importer: only a GM can import scenes.")) return;
+    if (!requireGM(t("DAT.Importer.GMOnly"))) return;
     const folder = this.element.querySelector("input[name='folder']")?.value?.trim();
     const source = this.element.querySelector("input[name='source']")?.value?.trim() || "data";
     if (!folder) {
-      ui.notifications.warn("Please select a folder first.");
+      ui.notifications.warn(t("DAT.Importer.NoFolder"));
       return;
     }
 
@@ -662,7 +662,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       if (Number.isFinite(b) && Number.isFinite(t) && b >= t) badLevels.push(i);
     }
     if (badLevels.length) {
-      ui.notifications.error(`DA Importer: level(s) ${badLevels.join(", ")} have bottom ≥ top. Fix the elevation values before importing.`);
+      ui.notifications.error(t("DAT.Importer.BadElevation", { levels: badLevels.join(", ") }));
       return;
     }
 
@@ -690,7 +690,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     try {
       scene = await importFolder({ source, path: folder, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides, initialLevelIndex });
     } catch (err) {
-      ui.notifications.error(`DA Importer: import failed (${err.message})`);
+      ui.notifications.error(t("DAT.Importer.ImportFailed", { error: err.message }));
       console.error(err);
       return;
     }
