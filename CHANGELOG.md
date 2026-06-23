@@ -1,3 +1,20 @@
+# 0.3.0
+
+Stairs/portal UX rework (phases 5–10 of `docs/REWORK-PLAN.md`). Still pending a
+live v14 confirmation; all changes are node-checked and degrade safely.
+
+## [Changed]
+- **Guided stairs placement.** Creating stairs/portals now uses a persistent on-canvas banner with an in-flow floor picker (the bound level is the one you pick — fixing wrong-floor binding), a ghost of the placed entrance, and Back/Cancel — replacing the old toast-driven, manual-floor-switch flow.
+- **Link-aware Stairs Manager.** "Edit" now opens a link editor (rename, change type/two-way for the whole link); an "Open Region Sheet" button remains for shape/elevation.
+- **One idempotent link path (`bindPortals`).** Create, direct-connect, and edit all route through it; teleport behaviors are replaced (never stacked) and an existing link id is reused, so re-linking/editing converges.
+- **Honest player labels.** The sight-gated "Stairs" label is now a hint; using a stair is the native walk-onto behavior (the unreliable client-side token move was removed).
+
+## [Fixed]
+- Overlays redraw on a toolkit-driven level change; region hooks are scene-scoped and debounced. `regionCenter` handles non-rectangle shapes. Bounded the import subfolder search; `regionUuid` no longer returns a broken reference.
+
+## [Deferred]
+- Importer tabs → native ApplicationV2 `static TABS` (a moat rewrite that needs live verification), the full i18n toast sweep, and retiring/folding the legacy `AddRegion` `changeLevel` tool.
+
 # 0.2.0
 
 Early "redo" pass — safety, correctness, and a unified entry point — driven by a
