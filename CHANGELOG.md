@@ -1,3 +1,26 @@
+# 0.2.0
+
+Early "redo" pass — safety, correctness, and a unified entry point — driven by a
+three-part audit (`docs/audits/`) and `docs/REWORK-PLAN.md`.
+
+## [Security]
+- **GM-gate every write path.** Imports, scene/region creation, and all stairs/portal writes now require a GM (clear toast otherwise). The Stairs Manager is GM-only too — its list would otherwise reveal hidden trap locations to players.
+
+## [Fixed]
+- **Stairs no longer silently bind to the wrong floor.** Active-level detection now uses Foundry v14's documented accessors (with a diagnostic log on fallback) instead of guessed paths that always resolved to the bottom floor.
+- **Teleport payload** prefers v14's canonical plural `destinations` over the deprecated singular `destination` (read from the live behavior schema), and forces a confirm/picker for multi-destination links.
+- **Importer hardening:** map-wide DA values (width/height/grid/padding/distance/colors) are validated or clamped before `Scene.create`, closing the last "one bad value aborts the whole import" path. Fractional level elevations are no longer truncated; skipped unpaired files are surfaced as a notification.
+
+## [Changed]
+- **Unified entry point.** The three Scenes-directory buttons (injected by scraping the sidebar DOM) are replaced by a **Dungeon Alchemist** scene-controls group (left canvas toolbar) plus a reliable **hub** window — opened via `DA.open()` or an *Open the Toolkit* button in Module Settings. Tool windows now focus an existing instance instead of stacking duplicates.
+- Internal: shared GM/level/canvas-pick helpers extracted into `util.js` / `levels.js` / `canvas-pick.js`.
+
+## [Added]
+- English localization scaffold (`lang/en.json`) and `module.json` packaging metadata (`languages`, `media`, `bugs`).
+
+## [Notes]
+- The stairs/portal system is built on native v14 and hardened, but still pending a live confirmation in a running v14 world (no Foundry runtime in CI). Everything in this release is statically verified or degrades to prior behavior if a guessed API differs. See `docs/STAIRS-TESTING.md`.
+
 # 0.1.0
 
 ## [Changed]
