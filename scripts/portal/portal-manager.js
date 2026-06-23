@@ -74,6 +74,9 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     try { await viewLevel(regionLevelId(region)); } catch (_) { /* non-fatal */ }
     const c = regionCenter(region);
     if (c && typeof canvas?.animatePan === "function") canvas.animatePan({ x: c.x, y: c.y, duration: 250 });
+    // Activate the Regions layer first, or control() can no-op when another layer
+    // is active.
+    try { canvas?.regions?.activate?.(); } catch (_) { /* non-fatal */ }
     try { region.object?.control?.({ releaseOthers: true }); } catch (_) { /* non-fatal */ }
   }
 

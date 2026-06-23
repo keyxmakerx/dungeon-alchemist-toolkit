@@ -40,7 +40,11 @@ export const MODE_PRESETS = {
  * @returns {string}
  */
 export function regionUuid(region) {
-  return region?.uuid ?? `Scene.${region?.parent?.id}.Region.${region?.id}`;
+  if (region?.uuid) return region.uuid;
+  // Fabricate only when both ids exist; otherwise throw rather than hand back a
+  // broken "Scene.undefined.Region.…" reference that would silently fail teleports.
+  if (region?.parent?.id && region?.id) return `Scene.${region.parent.id}.Region.${region.id}`;
+  throw new Error("Region has no resolvable UUID (cannot use it as a teleport destination).");
 }
 
 /**

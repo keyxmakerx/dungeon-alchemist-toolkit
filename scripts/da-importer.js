@@ -87,8 +87,7 @@ async function _ensureUniqueSubfolder(baseName) {
   } catch (_) { /* already exists — safe to ignore */ }
 
   let candidate = baseName;
-  let n = 0;
-  while (true) {
+  for (let n = 0; n < 1000; n++) {
     const testPath = `${root}/${candidate}`;
     let exists = false;
     try {
@@ -101,9 +100,10 @@ async function _ensureUniqueSubfolder(baseName) {
       await FP.createDirectory("data", testPath, {});
       return testPath;
     }
-    n += 1;
-    candidate = `${baseName}${n}`;
+    candidate = `${baseName}${n + 1}`;
   }
+  // Bounded so a pathological set of existing folders can't spin forever.
+  throw new Error("Could not find a free destination subfolder after 1000 attempts.");
 }
 
 /**
