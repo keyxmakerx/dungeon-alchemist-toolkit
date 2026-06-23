@@ -59,3 +59,17 @@ export function getCurrentLevelId(scene) {
   }
   return levels[0]?._id ?? null;
 }
+
+/**
+ * Switch the viewed level via the documented v14 nav surface:
+ * SceneNavigation#viewLevel, else Scene#view({ level }). Guarded — if neither
+ * exists on the running build it resolves to a no-op (callers still pan/control).
+ * Wrap calls in try/catch at the call site.
+ *
+ * @param {string} levelId
+ */
+export async function viewLevel(levelId) {
+  if (!levelId) return;
+  if (typeof ui?.nav?.viewLevel === "function") return ui.nav.viewLevel(levelId);
+  if (typeof canvas?.scene?.view === "function") return canvas.scene.view({ level: levelId });
+}

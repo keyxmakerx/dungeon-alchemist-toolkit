@@ -1,9 +1,9 @@
 /**
  * Canvas rectangle picker shared by the legacy region tool and the stairs/portal
- * wizard. Relocated verbatim from `region-adder.js` (Phase 0). Lets the user click
- * (drops a 1-grid square) or drag (sweeps a rectangle) to place a region
- * footprint, with a live preview; Escape cancels. `region-adder.js` re-exports it
- * for backward compatibility.
+ * wizard. Relocated from `region-adder.js` (Phase 0). Lets the user click (drops a
+ * 1-grid square) or drag (sweeps a rectangle) to place a region footprint, with a
+ * live preview; Escape — or an external AbortSignal — cancels. `region-adder.js`
+ * re-exports it for backward compatibility.
  */
 
 /** Guards against two concurrent canvas placements double-binding listeners. */
@@ -14,8 +14,8 @@ let _pickInProgress = false;
  * with a normalized world-space rectangle `{x, y, width, height}` (top-left
  * origin, positive dimensions). A plain click (drag travel under the
  * screen-pixel threshold) yields a 1-grid-square rectangle centered on the
- * press point; a drag yields the swept rectangle. Pressing Escape rejects with
- * `"cancelled"`.
+ * press point; a drag yields the swept rectangle. Pressing Escape — or aborting
+ * the optional `signal` — rejects with `"cancelled"`.
  *
  * Implementation notes:
  * - Listeners are attached in capture phase so they pre-empt Foundry's own
@@ -24,14 +24,17 @@ let _pickInProgress = false;
  * - The live preview is a `PIXI.Graphics` added to `canvas.controls`, whose
  *   children are in world coordinates (matching `canvas.mousePosition`); it is
  *   non-interactive (`eventMode = "none"`) and destroyed by the single
- *   idempotent `cleanup()` run on every exit path (commit, Escape, error).
- * - v14 uses PIXI v7, so the preview uses the immediate-mode Graphics API
- *   (`beginFill`/`drawRect`/`endFill`/`clear`).
+ *   idempotent `cleanup()` run on every exit path (commit, Escape, abort, error).
+ * - v14 uses PIXI v7, so the preview uses the immediate-mode Graphics API.
  *
+ * @param {object} [opts]
+ * @param {AbortSignal} [opts.signal]  Abort to cancel the placement externally
+ *                                     (e.g. a Cancel button or scene teardown).
  * @returns {Promise<{x:number, y:number, width:number, height:number}>}
  */
-export function pickCanvasRectangle() {
+export function pickCanvasRectangle({ signal } = {}) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
     if (_pickInProgress) {
       reject(new Error("A region placement is already in progress."));
       return;
@@ -123,6 +126,11 @@ export function pickCanvasRectangle() {
       reject(new Error("cancelled"));
     };
 
+    const onAbort = () => {
+      cleanup();
+      reject(new Error("cancelled"));
+    };
+
     const cleanup = () => {
       if (done) return;   // idempotent — safe to call from any exit path
       done = true;
@@ -131,6 +139,7 @@ export function pickCanvasRectangle() {
       document.removeEventListener("mousemove", onMouseMove, true);
       document.removeEventListener("mouseup", onMouseUp, true);
       document.removeEventListener("keydown", onKey, true);
+      signal?.removeEventListener("abort", onAbort);
       document.body.classList.remove("da-region-picking");
       if (preview) {
         preview.parent?.removeChild(preview);
@@ -144,6 +153,35 @@ export function pickCanvasRectangle() {
     document.addEventListener("mousemove", onMouseMove, true);
     document.addEventListener("mouseup", onMouseUp, true);
     document.addEventListener("keydown", onKey, true);
+    signal?.addEventListener("abort", onAbort, { once: true });
     document.body.classList.add("da-region-picking");
   });
+}
+
+/**
+ * Draw a dimmed "ghost" rectangle on the controls layer (e.g. to mark a portal
+ * entrance while the exit is being placed). Returns a disposer; calling it
+ * removes the ghost. Feature-detected — if the controls layer/PIXI is absent it
+ * returns a no-op disposer (no ghost, never a crash).
+ *
+ * @param {{x:number,y:number,width:number,height:number}} rect
+ * @returns {() => void} disposer
+ */
+export function drawGhostRect(rect) {
+  let g = null;
+  try {
+    if (canvas?.controls && rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) {
+      g = new PIXI.Graphics();
+      g.eventMode = "none";
+      g.lineStyle(2, 0xb0cc28, 0.6);
+      g.beginFill(0xb0cc28, 0.10);
+      g.drawRect(rect.x, rect.y, rect.width, rect.height);
+      g.endFill();
+      canvas.controls.addChild(g);
+    }
+  } catch (_) { g = null; }
+  return () => {
+    try { g?.parent?.removeChild(g); g?.destroy(); } catch (_) { /* ignore */ }
+    g = null;
+  };
 }

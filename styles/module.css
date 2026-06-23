@@ -590,3 +590,31 @@ body.da-region-picking canvas {
 .da-stairs-opts select,
 .da-stairs-opts input[type="text"] { width: 100%; }
 .da-stairs-opts-check { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.25rem; }
+
+/* ── Stairs placement banner (guided wizard) ─────────────────── */
+.da-place-banner {
+  position: fixed;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 65;
+  max-width: min(680px, 92vw);
+  padding: 0.5rem 0.75rem;
+  background: var(--color-cool-5, #1a1a2e);
+  border: 1px solid var(--color-border-light-primary, #555);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  color: var(--color-text-light-primary, #eee);
+  font-size: var(--font-size-13, 13px);
+}
+.da-place-title { font-weight: 600; }
+.da-place-hint {
+  margin-top: 0.15rem;
+  color: var(--color-text-light-6, #aaa);
+  font-size: var(--font-size-12, 12px);
+}
+.da-place-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.45rem; }
+.da-place-level-label { display: inline-flex; align-items: center; gap: 0.3rem; }
+.da-place-level { max-width: 16rem; }
+.da-place-spacer { flex: 1; }
+.da-place-banner button { flex: 0 0 auto; width: auto; }

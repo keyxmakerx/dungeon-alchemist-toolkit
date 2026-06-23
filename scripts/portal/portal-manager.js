@@ -13,20 +13,9 @@ import {
   regionLevelId
 } from "./portal-core.js";
 import { addStairsInteractive } from "./portal-wizard.js";
-import { getSceneLevels } from "../levels.js";
+import { getSceneLevels, viewLevel } from "../levels.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
-
-/**
- * "View this level" via the documented v14 nav surface: SceneNavigation#viewLevel,
- * else Scene#view({ level }). Wrapped by callers in try/catch; if neither exists
- * on the running build it silently no-ops (pan + control still work).
- */
-async function viewLevel(levelId) {
-  if (!levelId) return;
-  if (typeof ui?.nav?.viewLevel === "function") return ui.nav.viewLevel(levelId);
-  if (typeof canvas?.scene?.view === "function") return canvas.scene.view({ level: levelId });
-}
 
 export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
