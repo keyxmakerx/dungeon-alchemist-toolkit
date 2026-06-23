@@ -143,5 +143,8 @@ export function registerPlayerPortalHooks() {
   Hooks.on("controlToken", () => scheduleRefresh());
   Hooks.on("updateToken", () => scheduleRefresh());
   Hooks.on("sightRefresh", () => scheduleRefresh());
-  for (const h of ["createRegion", "updateRegion", "deleteRegion"]) Hooks.on(h, () => scheduleRefresh());
+  Hooks.on("daLevelChanged", () => scheduleRefresh());
+  for (const h of ["createRegion", "updateRegion", "deleteRegion"]) {
+    Hooks.on(h, (doc) => { if (doc?.parent?.id === canvas?.scene?.id) scheduleRefresh(); });
+  }
 }

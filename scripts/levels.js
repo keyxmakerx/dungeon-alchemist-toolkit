@@ -70,6 +70,14 @@ export function getCurrentLevelId(scene) {
  */
 export async function viewLevel(levelId) {
   if (!levelId) return;
-  if (typeof ui?.nav?.viewLevel === "function") return ui.nav.viewLevel(levelId);
-  if (typeof canvas?.scene?.view === "function") return canvas.scene.view({ level: levelId });
+  if (typeof ui?.nav?.viewLevel === "function") {
+    await ui.nav.viewLevel(levelId);
+  } else if (typeof canvas?.scene?.view === "function") {
+    await canvas.scene.view({ level: levelId });
+  } else {
+    return;
+  }
+  // No confirmed core hook fires on a level change, so emit our own so the
+  // GM/player overlays can redraw for the newly-viewed floor.
+  try { Hooks.callAll("daLevelChanged", levelId); } catch (_) { /* ignore */ }
 }

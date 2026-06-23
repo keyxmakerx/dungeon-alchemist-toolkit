@@ -21,6 +21,7 @@ import { getCurrentLevelId } from "../levels.js";
 
 /** @type {PIXI.Graphics|null} */
 let _overlay = null;
+let _drawDebounce = null;
 
 const LINK_COLOR = 0xb0cc28;
 
@@ -41,6 +42,7 @@ function ensureOverlay() {
 
 /** Remove the overlay (on scene teardown). */
 export function teardownPortalOverlay() {
+  clearTimeout(_drawDebounce);
   try {
     _overlay?.parent?.removeChild(_overlay);
     _overlay?.destroy();
@@ -94,15 +96,24 @@ export function drawPortalOverlay() {
   }
 }
 
+/** Debounced redraw — coalesces a burst of region edits into one draw. */
+function scheduleDraw() {
+  clearTimeout(_drawDebounce);
+  _drawDebounce = setTimeout(() => drawPortalOverlay(), 120);
+}
+
 /**
- * Register the hooks that keep the overlay fresh. Called once at init.
- * Redraws on canvas ready and on any region create/update/delete. (Active-level
- * change has no confirmed hook yet; re-open the Manager or pan to refresh.)
+ * Register the hooks that keep the overlay fresh. Called once at init. Redraws on
+ * canvas ready, on a level change (our own `daLevelChanged` signal — emitted when
+ * the toolkit switches levels), and on create/update/delete of a Region *on the
+ * current scene* (debounced). A native floor switch still has no confirmed core
+ * hook; pan or re-open the Manager to refresh in that case.
  */
 export function registerPortalOverlayHooks() {
   Hooks.on("canvasReady", () => drawPortalOverlay());
   Hooks.on("canvasTearDown", () => teardownPortalOverlay());
+  Hooks.on("daLevelChanged", () => scheduleDraw());
   for (const hook of ["createRegion", "updateRegion", "deleteRegion"]) {
-    Hooks.on(hook, () => drawPortalOverlay());
+    Hooks.on(hook, (doc) => { if (doc?.parent?.id === canvas?.scene?.id) scheduleDraw(); });
   }
 }
