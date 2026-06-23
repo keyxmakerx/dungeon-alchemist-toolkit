@@ -68,13 +68,13 @@ Select the folder exported by Dungeon Alchemist, configure the tabs, and click I
 
 # 📦 Installation
 
-Install via the Foundry VTT Module browser or use this manifest link.
-
-> **Testing build:** this manifest currently points to the `claude/gracious-goodall-ukqsio` branch so the in-progress features can be tested before release. It will be repointed to `main` once that work is merged.
+Install via the Foundry VTT Module browser or use this manifest link:
 
 ```javascript
-https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/claude/gracious-goodall-ukqsio/module.json
+https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/main/module.json
 ```
+
+> **Note:** the stairs/portal system is built on native v14 and hardened, but still pending a live v14 confirmation — see `docs/STAIRS-TESTING.md`.
 
 # ⚖️ Credits & License
 

@@ -27,14 +27,14 @@
   "media": [
     {
       "type": "setup",
-      "url": "https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/claude/gracious-goodall-ukqsio/docs/preview.webp",
+      "url": "https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/main/docs/preview.webp",
       "caption": "Dungeon Alchemist Toolkit"
     }
   ],
   "bugs": "https://github.com/keyxmakerx/dungeon-alchemist-toolkit/issues",
 
   "url": "https://github.com/keyxmakerx/dungeon-alchemist-toolkit",
-  "manifest": "https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/claude/gracious-goodall-ukqsio/module.json",
-  "download": "https://codeload.github.com/keyxmakerx/dungeon-alchemist-toolkit/zip/refs/heads/claude/gracious-goodall-ukqsio",
+  "manifest": "https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/main/module.json",
+  "download": "https://codeload.github.com/keyxmakerx/dungeon-alchemist-toolkit/zip/refs/heads/main",
   "flags": {}
 }
