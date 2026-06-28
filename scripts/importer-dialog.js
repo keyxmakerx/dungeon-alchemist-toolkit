@@ -34,7 +34,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       closeOnSubmit: false
     },
     window: {
-      title: "Dungeon Alchemist Toolkit",
+      title: "Import Dungeon Alchemist Folder",
       resizable: false
     },
     position: {
@@ -168,22 +168,6 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       display.textContent = parseFloat(range.value).toFixed(2);
       range.addEventListener("input", () => {
         display.textContent = parseFloat(range.value).toFixed(2);
-      });
-    }
-
-    // Tab switching
-    const tabBtns = this.element.querySelectorAll(".da-tab-btn");
-    const tabPanels = this.element.querySelectorAll(".da-tab-panel");
-    for (const btn of tabBtns) {
-      btn.addEventListener("click", () => {
-        const target = btn.dataset.tab;
-        for (const b of tabBtns) {
-          b.classList.toggle("da-tab-btn--active", b.dataset.tab === target);
-          b.setAttribute("aria-selected", String(b.dataset.tab === target));
-        }
-        for (const panel of tabPanels) {
-          panel.classList.toggle("da-tab-panel--hidden", panel.dataset.tab !== target);
-        }
       });
     }
 
@@ -407,6 +391,25 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     const placeholder = this.element?.querySelector(".da-levels-placeholder");
     const list = this.element?.querySelector(".da-levels-list");
     if (!list) return;
+
+    // Header count + drag tip reflect detection state (preview-first layout): they
+    // appear only once a folder has resolved into floors.
+    const n = this._floorPairs.length;
+    const countEl = this.element?.querySelector(".da-import-count");
+    if (countEl) countEl.textContent = n ? ` · ${n}` : "";
+    const dropTip = this.element?.querySelector(".da-import-droptip");
+    if (dropTip) dropTip.hidden = !n;
+
+    // Surface files that couldn't be paired (image with no JSON, or vice-versa) so a
+    // wrong/partial folder is obvious rather than silently importing fewer floors.
+    const orphanEl = this.element?.querySelector(".da-import-orphans");
+    if (orphanEl) {
+      const orphans = Array.isArray(this._floorPairs.orphans) ? this._floorPairs.orphans : [];
+      orphanEl.hidden = orphans.length === 0;
+      orphanEl.textContent = orphans.length
+        ? `Skipped ${orphans.length} unpaired file(s): ${orphans.join("; ")}`
+        : "";
+    }
 
     // Continuous capture: any edit to a row input snapshots straight into
     // _levelState (wired once per list element), so edits survive a full

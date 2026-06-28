@@ -14,6 +14,7 @@ import { MODULE_ID } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { getSceneLevels, getCurrentLevelId, viewLevel } from "./levels.js";
 import { getPortalLinkGroups, regionLevelId } from "./portal/portal-core.js";
+import { updateLevel, setStartLevel, moveLevel, openNativeLevels } from "./scene-levels-edit.js";
 import { buildThumb } from "./floor-rows.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -33,6 +34,11 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     position: { width: 720, height: "auto" },
     actions: {
       viewFloor: DALevelManager.#onViewFloor,
+      saveFloor: DALevelManager.#onSaveFloor,
+      setStart: DALevelManager.#onSetStart,
+      moveUp: DALevelManager.#onMoveUp,
+      moveDown: DALevelManager.#onMoveDown,
+      openNative: DALevelManager.#onOpenNative,
       importFolder: DALevelManager.#onImport,
       addStairs: DALevelManager.#onAddStairs
     }
@@ -97,6 +103,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     stairs.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
 
     const sel = levelsAsc.find((l) => l._id === selectedId);
+    const selIdx = levelsAsc.findIndex((l) => l._id === selectedId);   // bottom-first index
     return {
       hasScene: true,
       sceneName: scene.name,
@@ -107,6 +114,8 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
         bottom: sel?.elevation?.bottom ?? 0,
         top: sel?.elevation?.top ?? 0,
         start: selectedId === startId,
+        canUp: selIdx < levelsAsc.length - 1,    // a floor sits above it
+        canDown: selIdx > 0,                      // a floor sits below it
         stairs
       }
     };
@@ -138,6 +147,61 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     try { await viewLevel(id); } catch (_) { /* non-fatal */ }
     this.render();
   }
+
+  /**
+   * Flush the floor-editor inputs (name + elevation) for the selected floor to the
+   * scene. Used by Save and as a pre-flush before the ★/move actions so an
+   * in-progress edit is never lost. `updateLevel` skips empty/invalid fields and
+   * no-ops when nothing changed, so calling this unconditionally is safe; all level
+   * writes are serialized in scene-levels-edit.js, so the pre-flush always lands
+   * before the action that follows it.
+   * @returns {Promise<void>}
+   */
+  async _commitEdits() {
+    const scene = canvas?.scene;
+    const id = this._selectedId;
+    if (!scene || !id || !this.element) return;
+    const name = this.element.querySelector(".da-edit-name")?.value;
+    const bottom = parseFloat(this.element.querySelector(".da-edit-bottom")?.value ?? "");
+    const top = parseFloat(this.element.querySelector(".da-edit-top")?.value ?? "");
+    // A reversed range is reported but not fatal — the name still commits and the
+    // bad elevation is dropped by updateLevel; the next render restores the field.
+    if (Number.isFinite(bottom) && Number.isFinite(top) && bottom >= top) {
+      ui.notifications?.warn?.(t("DAT.Dash.BadElevation"));
+    }
+    await updateLevel(scene, id, { name, bottom, top });
+  }
+
+  static async #onSaveFloor() {
+    await this._commitEdits();
+    this.render();
+  }
+
+  static async #onSetStart() {
+    const scene = canvas?.scene;
+    if (!scene || !this._selectedId) return;
+    await this._commitEdits();
+    await setStartLevel(scene, this._selectedId);
+    this.render();
+  }
+
+  static async #onMoveUp() {
+    const scene = canvas?.scene;
+    if (!scene || !this._selectedId) return;
+    await this._commitEdits();
+    await moveLevel(scene, this._selectedId, +1);
+    this.render();
+  }
+
+  static async #onMoveDown() {
+    const scene = canvas?.scene;
+    if (!scene || !this._selectedId) return;
+    await this._commitEdits();
+    await moveLevel(scene, this._selectedId, -1);
+    this.render();
+  }
+
+  static #onOpenNative() { openNativeLevels(canvas?.scene); }
 
   // Bridges to the existing flows until import (P3) and stairs (P5) fold in.
   static #onImport() { game.modules.get(MODULE_ID).api.Importer(); }

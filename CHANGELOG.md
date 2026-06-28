@@ -1,3 +1,20 @@
+# 0.4.0
+
+**Dashboard editing + preview-first import** (redesign Concept A, P2–P3). The Level
+Manager is now a real editor, and importing opens straight to your floors. Canvas
+stair visualization and inline stairs management follow in 0.5.0.
+
+## [Added]
+- **Inline floor editing in the Level Manager.** Select a floor and edit it on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, and **reorder ↑/↓**. An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility and floor deletion.
+- **Unpaired-file warning on import.** A folder with an image that has no JSON (or vice-versa) now shows an inline warning listing what was skipped, instead of silently importing fewer floors.
+
+## [Changed]
+- **Import is preview-first.** Picking a folder now opens straight to the detected **floors** (thumbnails / names / count) — previously they were buried behind the third tab, so you'd "pick a folder and hope". Scene background/grid/door options moved into a collapsible **Scene & door options** section.
+
+## [Notes]
+- Floor edits are written safely: every change sends the **complete `levels` array** via `scene.update`, then reads it back and warns on count/id drift (worst case a no-op, never data loss). All level writes are **serialized** so a fast edit-then-click can't clobber. Reorder **swaps elevation bands** (the list is elevation-ordered); because regions bind by level `_id`, **stairs stay attached** through any rename or reorder.
+- Statically verified (`node --check`, JSON-valid, template/selector contract checked); pending a live v14 confirmation as usual.
+
 # 0.3.2
 
 Preview toward **v0.4.0** — the new **DA Level Manager dashboard** (redesign Concept A, P0–P1).
