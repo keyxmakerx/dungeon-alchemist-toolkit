@@ -1,29 +1,35 @@
 /**
- * GM-only link overlay — draws a faint, translucent line between the two ends of
- * a *same-level* portal link (the "single-layer connection" the maintainer asked
- * for), plus a subtle ring on every portal end on the current level so the GM can
- * see at a glance which regions are stairs/portals.
+ * GM-only portal overlay — shows, on the current level, what every stair / portal /
+ * trap connects to:
+ *   • a per-link coloured ring + mode icon on each portal end (each linked pair has
+ *     its own stable colour);
+ *   • a translucent connecting line + midpoint label between two ends on the SAME
+ *     floor;
+ *   • a "↑ Floor"/"↓ Floor" badge on an end whose partner is on ANOTHER floor (incl.
+ *     the straight up/down case where both ends share x,y — the far end is simply on
+ *     a different level, so it gets a badge instead of a line).
  *
  * Pure presentation: no document writes, GM-only, redrawn on an event (never per
- * frame). Cross-level links can't be a line (only one end is on screen at a time),
- * so those ends just get the ring marker.
+ * frame, except a RAF-coalesced redraw while a portal is being dragged).
  *
- * ⚠️ Live-v14 notes: this draws into `canvas.controls` with the PIXI v7
- * immediate-mode Graphics API (same approach as the region picker). Both are
- * confirmed present in v14 but are not public-API guarantees; everything here is
- * feature-detected and try/catch-wrapped so a failure degrades to "no overlay"
- * rather than breaking the canvas. The active-level redraw hook name is uncertain
- * — switching levels may need a manual refresh until it's confirmed live.
+ * ⚠️ Live-v14 notes: draws into `canvas.controls` with PIXI v7. Everything is
+ * feature-detected and try/catch-wrapped, so a failure degrades to "no overlay"
+ * rather than breaking the canvas.
  */
 
 import { getPortalLinkGroups, regionCenter, regionLevelId } from "./portal-core.js";
-import { getCurrentLevelId } from "../levels.js";
+import { getCurrentLevelId, getSceneLevels } from "../levels.js";
+import { linkColor } from "./portal-color.js";
+import { drawCanvasLabel } from "./canvas-label.js";
 
 /** @type {PIXI.Graphics|null} */
 let _overlay = null;
+/** @type {PIXI.Container|null} Sibling layer for text (icons, labels, badges). */
+let _labels = null;
 let _drawDebounce = null;
 
-const LINK_COLOR = 0xb0cc28;
+/** Friendly glyph per portal mode. */
+const MODE_GLYPH = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
 
 /** Lazily (re)create the overlay Graphics on the controls layer. */
 function ensureOverlay() {
@@ -40,6 +46,21 @@ function ensureOverlay() {
   return _overlay;
 }
 
+/** Lazily (re)create the text/icon layer above the graphics. */
+function ensureLabelLayer() {
+  if (!canvas?.controls) return null;
+  if (_labels && !_labels.destroyed && _labels.parent) return _labels;
+  try {
+    _labels = new PIXI.Container();
+    _labels.eventMode = "none";
+    _labels.zIndex = 101;
+    canvas.controls.addChild(_labels);
+  } catch (_) {
+    _labels = null;
+  }
+  return _labels;
+}
+
 /** Remove the overlay (on scene teardown). */
 export function teardownPortalOverlay() {
   clearTimeout(_drawDebounce);
@@ -47,7 +68,12 @@ export function teardownPortalOverlay() {
     _overlay?.parent?.removeChild(_overlay);
     _overlay?.destroy();
   } catch (_) { /* ignore */ }
+  try {
+    _labels?.parent?.removeChild(_labels);
+    _labels?.destroy({ children: true });
+  } catch (_) { /* ignore */ }
   _overlay = null;
+  _labels = null;
 }
 
 /**
@@ -58,36 +84,85 @@ export function drawPortalOverlay() {
   if (!game.user?.isGM) return;
   const scene = canvas?.scene;
   const g = ensureOverlay();
+  const labels = ensureLabelLayer();
   if (!g || !scene) return;
 
   try {
     g.clear();
+    if (labels) for (const c of labels.removeChildren()) c.destroy({ children: true });
+
     const currentLevel = getCurrentLevelId(scene);
     const ringR = (scene.grid?.size ?? 100) * 0.35;
 
-    for (const [, entries] of getPortalLinkGroups(scene)) {
-      const onLevel = entries.filter((e) => {
-        const lid = regionLevelId(e.region);
-        // If we can't resolve the viewed level, show everything rather than nothing.
-        return !currentLevel || lid === currentLevel;
-      });
+    // Level elevation + name maps, computed once (the overlay redraws often).
+    const levels = getSceneLevels(scene);
+    const elevById = new Map(levels.map((l) => [l._id, l.elevation?.bottom ?? 0]));
+    const nameById = new Map(levels.map((l) => [l._id, l.name || "Level"]));
+    const viewedBottom = elevById.get(currentLevel) ?? 0;
 
-      // Ring marker on each portal end visible on this level.
+    for (const [linkId, entries] of getPortalLinkGroups(scene)) {
+      const color = linkColor(linkId);
+
+      // Partition ends: on the viewed level vs elsewhere. If the viewed level can't
+      // be resolved, treat everything as on-level (rings + lines, no badges).
+      const onLevel = [];
+      const offLevel = [];
+      for (const e of entries) {
+        const lid = regionLevelId(e.region);
+        if (!currentLevel || lid === currentLevel) onLevel.push(e);
+        else offLevel.push(e);
+      }
+
+      // Ring + mode icon on each on-level end.
+      const onCenters = [];
       for (const e of onLevel) {
         const c = regionCenter(e.region);
         if (!c) continue;
-        g.lineStyle(2, LINK_COLOR, 0.5);
+        g.lineStyle(2, color, 0.65);
         g.drawCircle(c.x, c.y, ringR);
+        if (labels) {
+          const glyph = MODE_GLYPH[e.portal?.mode] ?? MODE_GLYPH.stairs;
+          const icon = new PIXI.Text(glyph, { fontFamily: "Signika, sans-serif", fontSize: Math.max(12, Math.round(ringR * 1.1)) });
+          icon.anchor.set(0.5, 0.5);
+          icon.x = c.x;
+          icon.y = c.y;
+          labels.addChild(icon);
+        }
+        onCenters.push({ e, c });
       }
 
-      // Connecting line only when both ends share the current view (same layer).
-      if (onLevel.length >= 2) {
-        const centers = onLevel.map((e) => regionCenter(e.region)).filter(Boolean);
-        const [c0, ...rest] = centers;
-        for (const c of rest) {
-          g.lineStyle(3, LINK_COLOR, 0.35);
-          g.moveTo(c0.x, c0.y);
-          g.lineTo(c.x, c.y);
+      // SAME-FLOOR: translucent line + midpoint label between on-level ends. Anchor
+      // the line at the entrance end when one is tagged, else the first end.
+      if (onCenters.length >= 2 && labels) {
+        const anchorIdx = Math.max(0, onCenters.findIndex(({ e }) => e.portal?.role === "entrance"));
+        const a = onCenters[anchorIdx];
+        for (let i = 0; i < onCenters.length; i++) {
+          if (i === anchorIdx) continue;
+          const b = onCenters[i];
+          g.lineStyle(3, color, 0.4);
+          g.moveTo(a.c.x, a.c.y);
+          g.lineTo(b.c.x, b.c.y);
+          const mid = { x: (a.c.x + b.c.x) / 2, y: (a.c.y + b.c.y) / 2 };
+          const lbl = a.e.portal?.label || b.e.portal?.label || "Stairs";
+          labels.addChild(drawCanvasLabel(mid, lbl, { fontSize: 13, bg: color, bgAlpha: 0.5 }));
+        }
+      }
+
+      // CROSS-FLOOR: ↑/↓ badge on each on-level end with off-level partner(s). One
+      // badge per distinct partner level (covers straight up/down + multi-destination),
+      // stacked upward. Skipped when the viewed level is unknown (no elevation to compare).
+      if (offLevel.length && labels && currentLevel) {
+        const partnerLids = [...new Set(offLevel.map((e) => regionLevelId(e.region)).filter(Boolean))];
+        for (const { c } of onCenters) {
+          let stack = 0;
+          for (const plid of partnerLids) {
+            const up = (elevById.get(plid) ?? 0) > viewedBottom;
+            const text = `${up ? "↑" : "↓"} ${nameById.get(plid) ?? "—"}`;
+            labels.addChild(drawCanvasLabel(c, text, {
+              fontSize: 13, bg: color, bgAlpha: 0.85, offsetY: -10 - stack * 22
+            }));
+            stack++;
+          }
         }
       }
     }
@@ -104,10 +179,8 @@ function scheduleDraw() {
 
 /**
  * Register the hooks that keep the overlay fresh. Called once at init. Redraws on
- * canvas ready, on a level change (our own `daLevelChanged` signal — emitted when
- * the toolkit switches levels), and on create/update/delete of a Region *on the
- * current scene* (debounced). A native floor switch still has no confirmed core
- * hook; pan or re-open the Manager to refresh in that case.
+ * canvas ready, on a level change (our own `daLevelChanged` signal), and on
+ * create/update/delete of a Region *on the current scene* (debounced).
  */
 export function registerPortalOverlayHooks() {
   Hooks.on("canvasReady", () => drawPortalOverlay());
