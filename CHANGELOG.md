@@ -1,3 +1,14 @@
+# 0.3.2
+
+Preview toward **v0.4.0** — the new **DA Level Manager dashboard** (redesign Concept A, P0–P1).
+
+## [Added]
+- A unified **Level Manager** window: a floors list (thumbnail / name / elevation / ★) with **click-to-view**, and the stairs/portals that connect the selected floor. Opened from a single toolbar button, the *Open the Toolkit* Module-Settings entry, or `DA.open()`. Import / Add Stairs currently bridge to the existing flows; live import preview and inline stairs editing arrive in the next phases.
+
+## [Changed]
+- The toolbar entry is now a **single tool inside a native control group** (never a custom group), behind a **client setting** (Module Settings → "Toolbar button") so it can be turned off — directly addressing the 0.3.1 floor-selection regression.
+- Internal: extracted the shared thumbnail builder into `floor-rows.js`.
+
 # 0.3.1
 
 ## [Fixed]

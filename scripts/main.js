@@ -2,7 +2,7 @@ import { DAImporterDialog } from "./importer-dialog.js";
 import { DARegionAdderDialog } from "./region-adder-dialog.js";
 import { startAddStairs, addStairsInteractive, startLinkRegions } from "./portal/portal-wizard.js";
 import { DAStairsManager } from "./portal/portal-manager.js";
-import { DAToolkitHub } from "./hub.js";
+import { DALevelManager } from "./dashboard.js";
 import { registerToolkitEntries } from "./controls.js";
 import { registerPortalOverlayHooks } from "./portal/portal-overlay.js";
 import { registerPlayerPortalHooks } from "./portal/portal-player-overlay.js";
@@ -34,8 +34,8 @@ Hooks.once("init", () => {
   });
 
   const api = {
-    // Open the unified hub — the reliable, always-works entry point.
-    open: () => DAToolkitHub.open(),
+    // Open the Level Manager dashboard — the toolkit's home.
+    open: () => DALevelManager.open(),
     Importer: () => { if (!requireGM()) return null; return openSingleton(DAImporterDialog, "da-importer"); },
     // New native-teleport stairs/portal flow. No args -> prompt for type/label first;
     // explicit opts (e.g. {mode:"trap"}) skip the prompt.
@@ -64,4 +64,9 @@ Hooks.once("init", () => {
   registerPortalOverlayHooks();
   // Player-facing sight-gated "Stairs" labels (hover + click to use).
   registerPlayerPortalHooks();
+
+  // Keep an open dashboard in sync when the active scene/canvas changes.
+  Hooks.on("canvasReady", () => {
+    try { foundry.applications?.instances?.get("da-level-manager")?.render(false); } catch (_) { /* ignore */ }
+  });
 });
