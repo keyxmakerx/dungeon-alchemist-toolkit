@@ -1,4 +1,5 @@
-<div>
+<div class="da-import">
+
   <div class="form-group da-folder-group">
     <label>Dungeon Alchemist Export Folder</label>
     <div class="form-fields">
@@ -8,172 +9,157 @@
         <i class="fas fa-folder-open"></i> Browse
       </button>
     </div>
-    <p class="hint">Select the folder exported by Dungeon Alchemist containing the level media (image or video) and JSON.</p>
+    <p class="hint">Pick the folder Dungeon Alchemist exported (level media + JSON). Its floors appear below — no guessing whether you got the right one.</p>
   </div>
 
-  <nav class="da-tabs" role="tablist">
-    <button type="button" class="da-tab-btn da-tab-btn--active" data-tab="scene" role="tab" aria-selected="true">Scene Defaults</button>
-    <button type="button" class="da-tab-btn" data-tab="doors" role="tab" aria-selected="false">Doors</button>
-    <button type="button" class="da-tab-btn" data-tab="levels" role="tab" aria-selected="false">Levels</button>
-  </nav>
-
-  <div class="da-tab-panel" data-tab="scene" role="tabpanel">
-
-    <div class="da-field-card">
-      <div class="form-group da-inline-group">
-        <label>Background Color</label>
-        <div class="form-fields">
-          <input type="color" name="backgroundColor" value="#000000" />
-        </div>
-      </div>
-      <p class="hint">Scene background color applied to all levels.</p>
-    </div>
-
-    <div class="da-field-card">
-      <div class="form-group da-inline-group">
-        <label>Grid Opacity</label>
-        <div class="form-fields">
-          <input type="range" name="gridAlpha" min="0" max="1" step="0.05" value="0" />
-          <span class="range-value">0.00</span>
-        </div>
-      </div>
-      <p class="hint">Opacity of the grid overlay (0 = invisible, 1 = fully visible).</p>
-    </div>
-
-    <hr class="da-section-divider" />
-
-    <div class="da-field-card">
-      <div class="form-group da-inline-group da-toggle-group">
-        <label for="copyImages">Copy Media to World</label>
-        <div class="form-fields">
-          <label class="da-toggle">
-            <input type="checkbox" id="copyImages" name="copyImages" />
-            <span class="da-toggle-track">
-              <span class="da-toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <p class="hint">
-        When enabled, copies all floor media into
-        <code>worlds/&lt;world&gt;/da-imported/&lt;map-name&gt;/</code>
-        and points the scene to the copies.
-        Files are renamed to kebab-case.
-      </p>
-    </div>
-
-  </div>
-
-  <div class="da-tab-panel da-tab-panel--hidden" data-tab="doors" role="tabpanel">
-
-    <div class="da-field-card">
-      <div class="form-group da-inline-group">
-        <label>Door Texture</label>
-        <div class="form-fields da-door-row">
-          <select name="doorTexture">
-            <option value="">None</option>
-            <option value="canvas/doors/small/Door_Metal_Gray_E1_1x1.webp">Metal Gray E1</option>
-            <option value="canvas/doors/small/Door_Metal_Rusty_D_1x1.webp">Metal Rusty D</option>
-            <option value="canvas/doors/small/Door_Metal_Rusty_F_1x1.webp">Metal Rusty F</option>
-            <option value="canvas/doors/small/Door_Stone_Earthy_A_1x1.webp">Stone Earthy A</option>
-            <option value="canvas/doors/small/Door_Stone_Earthy_B1_1x1.webp">Stone Earthy B1</option>
-            <option value="canvas/doors/small/Door_Stone_Redrock_A_Rusty_1x1.webp">Stone Redrock A (Rusty)</option>
-            <option value="canvas/doors/small/Door_Stone_Redrock_B1_1x1.webp">Stone Redrock B1</option>
-            <option value="canvas/doors/small/Door_Stone_Volcanic_A_1x1.webp">Stone Volcanic A</option>
-            <option value="canvas/doors/small/Door_Stone_Volcanic_B1_1x1.webp">Stone Volcanic B1</option>
-            <option value="canvas/doors/small/Door_Wood_Ashen_A_1x1.webp">Wood Ashen A</option>
-            <option value="canvas/doors/small/Door_Wood_Ashen_D_1x1.webp">Wood Ashen D</option>
-            <option value="canvas/doors/small/Door_Wood_Ashen_E_1x1.webp">Wood Ashen E</option>
-            <option value="canvas/doors/small/Door_Wood_Ashen_L_1x1.webp">Wood Ashen L</option>
-            <option value="canvas/doors/small/Door_Wood_Dark_C_1x1.webp">Wood Dark C</option>
-            <option value="canvas/doors/small/Door_Wood_Dark_H_1x1.webp">Wood Dark H</option>
-            <option value="canvas/doors/small/Door_Wood_Dark_P_1x1.webp">Wood Dark P</option>
-            <option value="canvas/doors/small/Door_Wood_Light_B_1x1.webp">Wood Light B</option>
-            <option value="canvas/doors/small/Door_Wood_Light_G_1x1.webp">Wood Light G</option>
-            <option value="canvas/doors/small/Door_Wood_Light_I_1x1.webp">Wood Light I</option>
-            <option value="canvas/doors/small/Door_Wood_Red_D_1x1.webp">Wood Red D</option>
-            <option value="canvas/doors/small/Door_Wood_Red_J_1x1.webp">Wood Red J</option>
-            <option value="canvas/doors/small/Door_Wood_Red_K2_1x1.webp">Wood Red K2</option>
-            <option value="canvas/doors/small/Door_Wood_Walnut_F_1x1.webp">Wood Walnut F</option>
-            <option value="canvas/doors/small/Door_Wood_Walnut_H_1x1.webp">Wood Walnut H</option>
-            <option value="canvas/doors/small/Door_Wood_Walnut_R_1x1.webp">Wood Walnut R</option>
-          </select>
-          <img class="da-door-preview" src="" alt="" hidden />
-        </div>
-      </div>
-      <p class="hint">Applied to all doors (wall type "Door") using a swing animation. Select "None" to leave doors untextured.</p>
-    </div>
-
-    <div class="da-field-card">
-      <div class="form-group da-inline-group">
-        <label>Door Sound</label>
-        <div class="form-fields da-door-row">
-          <select name="doorSound">
-            <option value="">None</option>
-            <option value="futuristicFast">Futuristic (Fast)</option>
-            <option value="futuristicHydraulic">Futuristic (Hydraulic)</option>
-            <option value="futuristicForcefield">Futuristic (Forcefield)</option>
-            <option value="industrial">Industrial</option>
-            <option value="industrialCreaky">Industrial (Creaky)</option>
-            <option value="jail">Jail</option>
-            <option value="jailCreaky">Jail (Creaky)</option>
-            <option value="jailHeavy">Jail (Heavy)</option>
-            <option value="magicDoor">Magic Door</option>
-            <option value="magicWall">Magic Wall</option>
-            <option value="metal">Metal</option>
-            <option value="slidingMetal">Sliding Metal</option>
-            <option value="slidingMetalHeavy">Sliding Metal (Heavy)</option>
-            <option value="slidingModern">Sliding Modern</option>
-            <option value="slidingWood">Sliding Wood</option>
-            <option value="stoneBasic">Stone (Basic)</option>
-            <option value="stoneRocky">Stone (Rocky)</option>
-            <option value="stoneSandy">Stone (Sandy)</option>
-            <option value="woodBasic">Wood (Basic)</option>
-            <option value="woodCreaky">Wood (Creaky)</option>
-            <option value="woodHeavy">Wood (Heavy)</option>
-          </select>
-          <button type="button" data-action="previewSound" aria-label="Preview sound">
-            <i class="fas fa-play"></i>
-          </button>
-        </div>
-      </div>
-      <p class="hint">Sound played when opening or closing imported doors. Select "None" to use the Foundry default.</p>
-    </div>
-
-  </div>
-
-  <div class="da-tab-panel da-tab-panel--hidden" data-tab="levels" role="tabpanel">
-
-    <div class="da-field-card">
-      <div class="form-group da-inline-group">
-        <label>Floor Height</label>
-        <div class="form-fields">
-          <input type="number" name="uniformFloorHeight" min="1" step="1" value="10" />
-        </div>
-      </div>
-      <p class="hint">Applies uniform height to all levels. To use different heights per level, edit each row in the table below.</p>
-    </div>
-
-    <p class="hint">The defaults already stack your floors correctly — you only need to edit a row to fine-tune. Each <strong>Name</strong> is pre-filled from the original filename. <strong>Drag a row by its # to reorder the floors.</strong> Hover any column header to see what it does, or a thumbnail for its filename and size.</p>
-
-    <div class="da-levels-controls">
-      <label class="da-adv-toggle">
-        <input type="checkbox" name="showAdvanced" /> Show advanced columns
+  <div class="da-import-floors">
+    <div class="da-import-floors-hd">
+      <span class="da-import-floors-title">Floors<span class="da-import-count"></span></span>
+      <span class="da-dash-spacer"></span>
+      <label class="da-import-fh" data-tooltip="Default height applied to every floor; fine-tune individual rows below.">Height
+        <input type="number" name="uniformFloorHeight" min="1" step="1" value="10" />
       </label>
+      <label class="da-adv-toggle"><input type="checkbox" name="showAdvanced" /> Advanced</label>
       <button type="button" class="da-info-icon" aria-label="What do the advanced columns do?">&#9432;</button>
     </div>
+
     <div class="da-adv-help" hidden>
       <p><strong>Advanced columns — most maps don't need any of these.</strong></p>
       <ul>
-        <li><strong>Roof</strong> — tick this <em>only</em> on a floor that is actually a roof/ceiling sitting on top of the floor below. It then shows only while you're on that lower floor, and where it sits is worked out automatically (you set no numbers). <em>Not sure if you have a roof floor? Then you don't — leave Roof off on every row.</em></li>
+        <li><strong>Roof</strong> — tick this <em>only</em> on a floor that is actually a roof/ceiling sitting on top of the floor below. It then shows only while you're on that lower floor, positioned automatically (you set no numbers). <em>Not sure if you have a roof floor? Then you don't — leave Roof off on every row.</em></li>
         <li><strong>Start (★)</strong> — which floor players see first when the scene opens. Defaults to the bottom floor.</li>
       </ul>
     </div>
 
-    <p class="hint da-levels-placeholder">Select a folder above to see level rows.</p>
+    <p class="hint da-levels-placeholder">Pick a folder above to see its floors.</p>
     <div class="da-levels-list"></div>
-
+    <p class="da-import-orphans" hidden></p>
+    <p class="hint da-import-droptip" hidden>Drag a row by its <strong>#</strong> to reorder · hover a thumbnail for its filename and size · each name is pre-filled from the original file.</p>
   </div>
+
+  <details class="da-import-adv">
+    <summary>Scene &amp; door options</summary>
+    <div class="da-import-adv-body">
+
+      <div class="da-field-card">
+        <div class="form-group da-inline-group">
+          <label>Background Color</label>
+          <div class="form-fields">
+            <input type="color" name="backgroundColor" value="#000000" />
+          </div>
+        </div>
+        <p class="hint">Scene background color applied to all levels.</p>
+      </div>
+
+      <div class="da-field-card">
+        <div class="form-group da-inline-group">
+          <label>Grid Opacity</label>
+          <div class="form-fields">
+            <input type="range" name="gridAlpha" min="0" max="1" step="0.05" value="0" />
+            <span class="range-value">0.00</span>
+          </div>
+        </div>
+        <p class="hint">Opacity of the grid overlay (0 = invisible, 1 = fully visible).</p>
+      </div>
+
+      <div class="da-field-card">
+        <div class="form-group da-inline-group da-toggle-group">
+          <label for="copyImages">Copy Media to World</label>
+          <div class="form-fields">
+            <label class="da-toggle">
+              <input type="checkbox" id="copyImages" name="copyImages" />
+              <span class="da-toggle-track">
+                <span class="da-toggle-thumb"></span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <p class="hint">
+          When enabled, copies all floor media into
+          <code>worlds/&lt;world&gt;/da-imported/&lt;map-name&gt;/</code>
+          and points the scene to the copies.
+          Files are renamed to kebab-case.
+        </p>
+      </div>
+
+      <hr class="da-section-divider" />
+
+      <div class="da-field-card">
+        <div class="form-group da-inline-group">
+          <label>Door Texture</label>
+          <div class="form-fields da-door-row">
+            <select name="doorTexture">
+              <option value="">None</option>
+              <option value="canvas/doors/small/Door_Metal_Gray_E1_1x1.webp">Metal Gray E1</option>
+              <option value="canvas/doors/small/Door_Metal_Rusty_D_1x1.webp">Metal Rusty D</option>
+              <option value="canvas/doors/small/Door_Metal_Rusty_F_1x1.webp">Metal Rusty F</option>
+              <option value="canvas/doors/small/Door_Stone_Earthy_A_1x1.webp">Stone Earthy A</option>
+              <option value="canvas/doors/small/Door_Stone_Earthy_B1_1x1.webp">Stone Earthy B1</option>
+              <option value="canvas/doors/small/Door_Stone_Redrock_A_Rusty_1x1.webp">Stone Redrock A (Rusty)</option>
+              <option value="canvas/doors/small/Door_Stone_Redrock_B1_1x1.webp">Stone Redrock B1</option>
+              <option value="canvas/doors/small/Door_Stone_Volcanic_A_1x1.webp">Stone Volcanic A</option>
+              <option value="canvas/doors/small/Door_Stone_Volcanic_B1_1x1.webp">Stone Volcanic B1</option>
+              <option value="canvas/doors/small/Door_Wood_Ashen_A_1x1.webp">Wood Ashen A</option>
+              <option value="canvas/doors/small/Door_Wood_Ashen_D_1x1.webp">Wood Ashen D</option>
+              <option value="canvas/doors/small/Door_Wood_Ashen_E_1x1.webp">Wood Ashen E</option>
+              <option value="canvas/doors/small/Door_Wood_Ashen_L_1x1.webp">Wood Ashen L</option>
+              <option value="canvas/doors/small/Door_Wood_Dark_C_1x1.webp">Wood Dark C</option>
+              <option value="canvas/doors/small/Door_Wood_Dark_H_1x1.webp">Wood Dark H</option>
+              <option value="canvas/doors/small/Door_Wood_Dark_P_1x1.webp">Wood Dark P</option>
+              <option value="canvas/doors/small/Door_Wood_Light_B_1x1.webp">Wood Light B</option>
+              <option value="canvas/doors/small/Door_Wood_Light_G_1x1.webp">Wood Light G</option>
+              <option value="canvas/doors/small/Door_Wood_Light_I_1x1.webp">Wood Light I</option>
+              <option value="canvas/doors/small/Door_Wood_Red_D_1x1.webp">Wood Red D</option>
+              <option value="canvas/doors/small/Door_Wood_Red_J_1x1.webp">Wood Red J</option>
+              <option value="canvas/doors/small/Door_Wood_Red_K2_1x1.webp">Wood Red K2</option>
+              <option value="canvas/doors/small/Door_Wood_Walnut_F_1x1.webp">Wood Walnut F</option>
+              <option value="canvas/doors/small/Door_Wood_Walnut_H_1x1.webp">Wood Walnut H</option>
+              <option value="canvas/doors/small/Door_Wood_Walnut_R_1x1.webp">Wood Walnut R</option>
+            </select>
+            <img class="da-door-preview" src="" alt="" hidden />
+          </div>
+        </div>
+        <p class="hint">Applied to all doors (wall type "Door") using a swing animation. Select "None" to leave doors untextured.</p>
+      </div>
+
+      <div class="da-field-card">
+        <div class="form-group da-inline-group">
+          <label>Door Sound</label>
+          <div class="form-fields da-door-row">
+            <select name="doorSound">
+              <option value="">None</option>
+              <option value="futuristicFast">Futuristic (Fast)</option>
+              <option value="futuristicHydraulic">Futuristic (Hydraulic)</option>
+              <option value="futuristicForcefield">Futuristic (Forcefield)</option>
+              <option value="industrial">Industrial</option>
+              <option value="industrialCreaky">Industrial (Creaky)</option>
+              <option value="jail">Jail</option>
+              <option value="jailCreaky">Jail (Creaky)</option>
+              <option value="jailHeavy">Jail (Heavy)</option>
+              <option value="magicDoor">Magic Door</option>
+              <option value="magicWall">Magic Wall</option>
+              <option value="metal">Metal</option>
+              <option value="slidingMetal">Sliding Metal</option>
+              <option value="slidingMetalHeavy">Sliding Metal (Heavy)</option>
+              <option value="slidingModern">Sliding Modern</option>
+              <option value="slidingWood">Sliding Wood</option>
+              <option value="stoneBasic">Stone (Basic)</option>
+              <option value="stoneRocky">Stone (Rocky)</option>
+              <option value="stoneSandy">Stone (Sandy)</option>
+              <option value="woodBasic">Wood (Basic)</option>
+              <option value="woodCreaky">Wood (Creaky)</option>
+              <option value="woodHeavy">Wood (Heavy)</option>
+            </select>
+            <button type="button" data-action="previewSound" aria-label="Preview sound">
+              <i class="fas fa-play"></i>
+            </button>
+          </div>
+        </div>
+        <p class="hint">Sound played when opening or closing imported doors. Select "None" to use the Foundry default.</p>
+      </div>
+
+    </div>
+  </details>
 
   <footer class="sheet-footer flexrow">
     <button type="button" data-action="import">
