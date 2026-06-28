@@ -63,6 +63,42 @@
 #da-importer .da-import-adv[open] > summary { border-bottom: 1px solid var(--color-border-light-primary, #555); }
 #da-importer .da-import-adv-body { padding: 0.6rem 0.7rem; }
 
+/* In-window folder browser (P3+) — navigate folders and auto-detect floors. */
+#da-importer .da-browse { display: flex; flex-direction: column; gap: 0.4rem; }
+#da-importer .da-browse-bar { display: flex; align-items: center; gap: 0.4rem; }
+#da-importer .da-browse-src {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: var(--font-size-12, 12px); color: var(--color-text-light-6, #aaa); white-space: nowrap;
+}
+#da-importer .da-browse-src select { flex: 0 0 auto; }
+#da-importer .da-browse-up,
+#da-importer .da-browse-syspick {
+  flex: 0 0 auto; width: 28px; height: 28px; line-height: 1; cursor: pointer;
+  background: rgba(0, 0, 0, 0.18); border: 1px solid var(--color-border-light-primary, #555);
+  border-radius: 5px; color: var(--color-text-light-1, #e8e8f0);
+}
+#da-importer .da-browse-up:disabled { opacity: 0.35; cursor: default; }
+#da-importer .da-browse-path {
+  font-family: var(--font-mono, monospace); font-size: var(--font-size-12, 12px);
+  color: #cfd8e8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;
+}
+#da-importer .da-browse-dirs {
+  display: flex; flex-direction: column; max-height: 150px; overflow-y: auto;
+  border: 1px solid var(--color-border-light-primary, #555); border-radius: 6px;
+  padding: 0.25rem; background: rgba(0, 0, 0, 0.15);
+}
+#da-importer .da-browse-dir {
+  display: flex; align-items: center; gap: 0.5rem; text-align: left; width: 100%;
+  background: none; border: none; color: var(--color-text-light-1, #e8e8f0); cursor: pointer;
+  padding: 0.35rem 0.4rem; border-radius: 4px; font-size: var(--font-size-13, 13px);
+}
+#da-importer .da-browse-dir:hover { background: rgba(255, 255, 255, 0.06); }
+#da-importer .da-browse-dir i { color: #f5c060; flex: 0 0 auto; }
+#da-importer .da-browse-empty { margin: 0.3rem 0.2rem; }
+#da-importer .da-browse-status { margin: 0.1rem 0; font-size: var(--font-size-12, 12px); color: var(--color-text-light-6, #aaa); }
+#da-importer .da-browse-status--found { color: #8fd16b; font-weight: 600; }
+#da-importer .sheet-footer button:disabled { opacity: 0.5; cursor: default; }
+
 #da-importer .form-fields {
   display: flex;
   gap: 0.5rem;

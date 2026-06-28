@@ -26,6 +26,14 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
   _sizeAbort = null;
   /** Levels-tab "Show advanced columns" state (Roof / Start / Visible); persisted across re-renders. */
   _advancedView = false;
+  /** In-window folder browser: the FilePicker source ("data"/"public"/...) being browsed. */
+  _source = "data";
+  /** In-window folder browser: the current folder path (relative to the source root; "" = root). */
+  _cwd = "";
+  /** In-window folder browser: subfolder paths in the current folder. */
+  _dirs = [];
+  /** Guards the one-time auto-browse of the source root on first render. */
+  _browsedOnce = false;
 
   static DEFAULT_OPTIONS = {
     id: "da-importer",
@@ -43,6 +51,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     },
     actions: {
       browse: DAImporterDialog.#onBrowse,
+      browseUp: DAImporterDialog.#onBrowseUp,
       import: DAImporterDialog.#onImport,
       previewSound: DAImporterDialog.#onPreviewSound
     }
@@ -54,42 +63,138 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     }
   };
 
+  /**
+   * Open the OS/system file picker as a shortcut, then drop the in-window browser
+   * at whatever folder was chosen. A fallback to the embedded navigator below — the
+   * browser is the primary way to find a folder.
+   */
   static async #onBrowse(_event, _target) {
-    const FilePicker = foundry.applications.apps.FilePicker.implementation;
+    const FilePicker = foundry.applications.apps?.FilePicker?.implementation;
+    if (!FilePicker) return;
     const picker = new FilePicker({
       type: "folder",
-      current: "",
+      current: this._cwd || "",
       callback: async (path) => {
-        const folderInput = this.element.querySelector("input[name='folder']");
-        const sourceInput = this.element.querySelector("input[name='source']");
-        if (folderInput) folderInput.value = path;
-        const source = picker.activeSource ?? "data";
-        if (sourceInput) sourceInput.value = source;
-
-        // Browse the folder so the Levels tab can show per-level rows.
-        try {
-          const listing = await FilePicker.browse(source, path);
-          this._floorPairs = collectFloorPairs(listing.files);
-        } catch (_err) {
-          this._floorPairs = [];
-        }
-        // Fresh folder: give each floor a stable uid (so its edits and order can
-        // follow it), and reset per-floor state, the initial level, and sizes.
-        for (const p of this._floorPairs) p.uid = foundry.utils.randomID();
-        this._levelState = new Map();
-        this._initialLevelUid = this._floorPairs[0]?.uid ?? null;
-        this._mediaSizes = new Map();
-        // Heuristic: a floor whose filename contains "roof" is pre-marked as a Roof
-        // (a default only — overridable under "Show advanced columns").
-        const roofs = this._floorPairs.filter(p => /\broof/i.test(p.stem));
-        if (roofs.length) {
-          ui.notifications.info(t("DAT.Importer.RoofDetected", { count: roofs.length, names: roofs.map(p => p.stem).join(", ") }));
-        }
-        this._populateLevelsTab();
-        this._probeMediaSizes(source);
+        this._source = picker.activeSource ?? this._source;
+        const srcSel = this.element?.querySelector("select[name='sourceSelect']");
+        if (srcSel) srcSel.value = this._source;
+        await this._browseTo(path);
       }
     });
-    await picker.browse("");
+    await picker.browse(this._cwd || "");
+  }
+
+  /** Navigate the in-window browser up one folder (no-op at the source root). */
+  static async #onBrowseUp(_event, _target) {
+    const parent = this._cwd.includes("/") ? this._cwd.split("/").slice(0, -1).join("/") : "";
+    await this._browseTo(parent);
+  }
+
+  /**
+   * Core of the in-window folder browser: list a folder's subfolders and files via
+   * FilePicker.browse, detect any Dungeon Alchemist floors among the files, and
+   * render both. Navigating is just calling this with a new path — no OS dialog,
+   * so you "go to a folder and see what's in it" before committing. Degrades to a
+   * warning (and the system-picker fallback) if the build lacks FilePicker.browse.
+   *
+   * @param {string} path  Folder path relative to the current source ("" = root).
+   */
+  async _browseTo(path) {
+    const FilePicker = foundry.applications.apps?.FilePicker?.implementation;
+    if (typeof FilePicker?.browse !== "function") {
+      ui.notifications?.warn?.("In-window browsing isn't available on this build — use the system picker button.");
+      return;
+    }
+    let listing;
+    try {
+      listing = await FilePicker.browse(this._source, path ?? "");
+    } catch (err) {
+      ui.notifications?.warn?.(`Can't open that folder: ${err.message}`);
+      return;
+    }
+    this._cwd = listing.target ?? path ?? "";
+    this._dirs = (listing.dirs ?? []).slice().sort((a, b) => a.localeCompare(b));
+
+    // Detect DA floors among this folder's files (same machinery as before).
+    this._floorPairs = collectFloorPairs(listing.files ?? []);
+    // Fresh folder: give each floor a stable uid (so edits/order follow it), and
+    // reset per-floor state, the initial level, and probed sizes.
+    for (const p of this._floorPairs) p.uid = foundry.utils.randomID();
+    this._levelState = new Map();
+    this._initialLevelUid = this._floorPairs[0]?.uid ?? null;
+    this._mediaSizes = new Map();
+
+    // Mirror the resolved folder/source into the hidden inputs the import reads.
+    const folderInput = this.element?.querySelector("input[name='folder']");
+    const sourceInput = this.element?.querySelector("input[name='source']");
+    if (folderInput) folderInput.value = this._cwd;
+    if (sourceInput) sourceInput.value = this._source;
+
+    // Heuristic: a floor whose filename contains "roof" is pre-marked as a Roof
+    // (a default only — overridable under "Advanced"). Only fires in folders that
+    // actually contain DA floors, so plain navigation stays quiet.
+    const roofs = this._floorPairs.filter((p) => /\broof/i.test(p.stem));
+    if (roofs.length) {
+      ui.notifications.info(t("DAT.Importer.RoofDetected", { count: roofs.length, names: roofs.map((p) => p.stem).join(", ") }));
+    }
+
+    this._renderBrowser();
+    this._populateLevelsTab();
+    this._probeMediaSizes(this._source);
+  }
+
+  /**
+   * Render the folder-browser chrome from current state: the source/path bar, the
+   * Up button, the clickable subfolder list, a "floors found here" status line, and
+   * the import button's label/enabled state. Cheap to call after every navigation.
+   */
+  _renderBrowser() {
+    if (!this.element) return;
+
+    const pathEl = this.element.querySelector(".da-browse-path");
+    if (pathEl) pathEl.textContent = this._cwd ? `/${this._cwd}` : "/ (root)";
+
+    const upBtn = this.element.querySelector(".da-browse-up");
+    if (upBtn) upBtn.disabled = !this._cwd;
+
+    const dirList = this.element.querySelector(".da-browse-dirs");
+    if (dirList) {
+      dirList.replaceChildren();
+      if (!this._dirs.length) {
+        const empty = document.createElement("p");
+        empty.className = "hint da-browse-empty";
+        empty.textContent = "No subfolders here.";
+        dirList.appendChild(empty);
+      } else {
+        for (const dir of this._dirs) {
+          const name = dir.split("/").filter(Boolean).pop() || dir;
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = "da-browse-dir";
+          const icon = document.createElement("i");
+          icon.className = "fa-solid fa-folder";
+          const label = document.createElement("span");
+          label.textContent = name;
+          row.append(icon, label);
+          row.addEventListener("click", () => this._browseTo(dir));
+          dirList.appendChild(row);
+        }
+      }
+    }
+
+    const n = this._floorPairs.length;
+    const status = this.element.querySelector(".da-browse-status");
+    if (status) {
+      status.textContent = n
+        ? `✓ ${n} Dungeon Alchemist floor${n === 1 ? "" : "s"} found here — review below, then import.`
+        : "No DA floors in this folder. Open a subfolder above to keep looking.";
+      status.classList.toggle("da-browse-status--found", n > 0);
+    }
+
+    const importBtn = this.element.querySelector('[data-action="import"]');
+    if (importBtn) importBtn.disabled = n === 0;
+    const importLabel = this.element.querySelector(".da-import-btn-label");
+    if (importLabel) importLabel.textContent = n ? `Import ${n} floor${n === 1 ? "" : "s"}` : "Import";
   }
 
   /**
@@ -235,8 +340,25 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       advHelpBtn.addEventListener("click", () => { advHelp.hidden = !advHelp.hidden; });
     }
 
-    // Restore levels tab rows after any re-render.
-    this._populateLevelsTab();
+    // In-window folder browser: switching source re-browses from that source's root.
+    const srcSel = this.element.querySelector("select[name='sourceSelect']");
+    if (srcSel) {
+      srcSel.value = this._source;
+      srcSel.addEventListener("change", () => {
+        this._source = srcSel.value;
+        this._browseTo("");
+      });
+    }
+
+    // First render auto-opens the source root, so floors are discoverable without an
+    // OS dialog; later re-renders just repaint the browser + floors from state.
+    if (!this._browsedOnce) {
+      this._browsedOnce = true;
+      this._browseTo(this._cwd || "");
+    } else {
+      this._renderBrowser();
+      this._populateLevelsTab();
+    }
   }
 
   /**
