@@ -20,8 +20,26 @@
       {{/each}}
     </div>
     <div class="da-dash-detail">
-      <div class="da-dash-selname">{{selected.name}}{{#if selected.start}} <span class="da-star">★ {{localize "DAT.Dash.Start"}}</span>{{/if}}</div>
-      <div class="da-dash-selelev">{{localize "DAT.Dash.Elev"}} {{selected.bottom}}–{{selected.top}}</div>
+      <div class="da-floor-edit">
+        <div class="da-edit-row">
+          <input type="text" class="da-edit-name" value="{{selected.name}}" placeholder="{{localize "DAT.Dash.NamePlaceholder"}}" />
+          <button type="button" class="da-edit-star{{#if selected.start}} is-start{{/if}}" data-action="setStart" data-tooltip="{{localize "DAT.Dash.SetStartHint"}}">{{#if selected.start}}★{{else}}☆{{/if}}</button>
+        </div>
+        <div class="da-edit-row">
+          <label class="da-edit-lbl">{{localize "DAT.Dash.Elev"}}</label>
+          <input type="number" class="da-edit-bottom" value="{{selected.bottom}}" step="1" />
+          <span class="da-edit-dash">–</span>
+          <input type="number" class="da-edit-top" value="{{selected.top}}" step="1" />
+          <span class="da-dash-spacer"></span>
+          <button type="button" class="da-edit-move" data-action="moveDown" data-tooltip="{{localize "DAT.Dash.MoveDown"}}"{{#unless selected.canDown}} disabled{{/unless}}><i class="fa-solid fa-arrow-down"></i></button>
+          <button type="button" class="da-edit-move" data-action="moveUp" data-tooltip="{{localize "DAT.Dash.MoveUp"}}"{{#unless selected.canUp}} disabled{{/unless}}><i class="fa-solid fa-arrow-up"></i></button>
+        </div>
+        <div class="da-edit-row da-edit-actions">
+          <button type="button" class="da-dash-btn" data-action="saveFloor"><i class="fa-solid fa-check"></i> {{localize "DAT.Dash.SaveFloor"}}</button>
+          <span class="da-dash-spacer"></span>
+          <button type="button" class="da-edit-link" data-action="openNative" data-tooltip="{{localize "DAT.Dash.OpenNativeHint"}}">{{localize "DAT.Dash.OpenNative"}}</button>
+        </div>
+      </div>
       <div class="da-dash-hd">{{localize "DAT.Dash.StairsHd"}}</div>
       {{#if selected.stairs.length}}
         {{#each selected.stairs}}
