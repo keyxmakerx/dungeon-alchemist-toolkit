@@ -745,7 +745,13 @@ body.da-region-picking canvas {
 /* Floor editor (P2) — selected-floor name/elevation/start/reorder controls. */
 .da-floor-edit { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.7rem; }
 .da-edit-row { display: flex; align-items: center; gap: 0.4rem; }
-.da-edit-name { flex: 1; font-size: 15px; font-weight: 600; }
+.da-edit-name {
+  flex: 1; font-size: 18px; font-weight: 700; color: var(--color-text-light-0, #fff);
+  background: transparent; border: none; border-bottom: 1px dashed transparent; padding: 2px 2px;
+}
+.da-edit-name:hover, .da-edit-name:focus {
+  border-bottom-color: var(--color-border-light-primary, #4a4a6a); outline: none;
+}
 .da-edit-star {
   flex: 0 0 auto; width: 30px; height: 30px; line-height: 1; font-size: 16px; cursor: pointer;
   background: rgba(0, 0, 0, 0.18); border: 1px solid var(--color-border-light-primary, #555);
@@ -769,3 +775,13 @@ body.da-region-picking canvas {
   width: auto; flex: 0 0 auto; background: none; border: none; cursor: pointer; padding: 0;
   color: var(--color-text-hyperlink, #88c0ff); font-size: 12px; text-decoration: underline;
 }
+.da-edit-danger {
+  width: auto; flex: 0 0 auto; cursor: pointer; border-radius: 5px; padding: 6px 10px; font-size: 13px;
+  background: rgba(204, 70, 40, 0.12); border: 1px solid #6b2e22; color: #e98b74;
+}
+.da-edit-danger:hover { background: rgba(204, 70, 40, 0.2); }
+.da-floor-add {
+  width: 100%; margin-top: 0.2rem; cursor: pointer; border-radius: 7px; padding: 8px; font-size: 13px;
+  background: rgba(91, 156, 240, 0.1); border: 1px dashed var(--color-level-1, #3a5aa0); color: #9ec5ff;
+}
+.da-floor-add:hover { background: rgba(91, 156, 240, 0.18); }

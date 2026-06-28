@@ -18,6 +18,7 @@
         </div>
       </div>
       {{/each}}
+      <button type="button" class="da-floor-add" data-action="addFloor" data-tooltip="{{localize "DAT.Dash.AddFloorHint"}}"><i class="fa-solid fa-plus"></i> {{localize "DAT.Dash.AddFloor"}}</button>
     </div>
     <div class="da-dash-detail">
       <div class="da-floor-edit">
@@ -36,6 +37,11 @@
         </div>
         <div class="da-edit-row da-edit-actions">
           <button type="button" class="da-dash-btn" data-action="saveFloor"><i class="fa-solid fa-check"></i> {{localize "DAT.Dash.SaveFloor"}}</button>
+          <button type="button" class="da-dash-btn" data-action="replaceImage" data-tooltip="{{localize "DAT.Dash.ReplaceImageHint"}}"><i class="fa-solid fa-image"></i> {{localize "DAT.Dash.ReplaceImage"}}</button>
+          <span class="da-dash-spacer"></span>
+          <button type="button" class="da-edit-danger" data-action="removeFloor" data-tooltip="{{localize "DAT.Dash.RemoveFloorHint"}}"><i class="fa-solid fa-trash"></i> {{localize "DAT.Dash.RemoveFloor"}}</button>
+        </div>
+        <div class="da-edit-row da-edit-actions">
           <span class="da-dash-spacer"></span>
           <button type="button" class="da-edit-link" data-action="openNative" data-tooltip="{{localize "DAT.Dash.OpenNativeHint"}}">{{localize "DAT.Dash.OpenNative"}}</button>
         </div>
