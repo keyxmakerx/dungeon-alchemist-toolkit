@@ -785,3 +785,21 @@ body.da-region-picking canvas {
   background: rgba(91, 156, 240, 0.1); border: 1px dashed var(--color-level-1, #3a5aa0); color: #9ec5ff;
 }
 .da-floor-add:hover { background: rgba(91, 156, 240, 0.18); }
+
+/* GM canvas hover/select info-card for a stair/portal/trap. */
+.da-portal-card {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 10000;
+  pointer-events: none;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--color-cool-5, #1a1a2e);
+  border: 1px solid var(--color-border-light-primary, #4a5266);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  color: var(--color-text-light-1, #e8e8f0);
+  font-family: "Signika", sans-serif;
+  max-width: 240px;
+}
+.da-portal-card-title { font-weight: 700; font-size: 13px; }
+.da-portal-card-sub { font-size: 11px; color: var(--color-text-light-6, #aab); margin-top: 1px; text-transform: capitalize; }
