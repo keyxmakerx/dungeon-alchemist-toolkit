@@ -18,6 +18,7 @@
 
 import { getScenePortals, regionCenter, regionLevelId } from "./portal-core.js";
 import { getCurrentLevelId } from "../levels.js";
+import { drawCanvasLabel } from "./canvas-label.js";
 import { t } from "../util.js";
 
 /** @type {PIXI.Container|null} */
@@ -59,38 +60,16 @@ function ensureLayer() {
 }
 
 function buildLabel(center, text) {
-  const cont = new PIXI.Container();
-  cont.x = center.x;
-  cont.y = center.y;
-  cont.eventMode = "static";
-  cont.cursor = "help";
-
-  const label = new PIXI.Text(String(text), {
-    fontFamily: "Signika, sans-serif",
-    fontSize: 16,
-    fill: 0xffffff,
-    stroke: 0x000000,
-    strokeThickness: 3,
-    align: "center"
+  // The sight-gated "Stairs" hint shares the canvas-label builder with the GM
+  // overlay; the player-specific bit is the click hint, passed as onClick.
+  return drawCanvasLabel(center, text, {
+    interactive: true,
+    cursor: "help",
+    onClick: (ev) => {
+      ev?.stopPropagation?.();
+      ui.notifications?.info?.(t("DAT.Stairs.UseHint"));
+    }
   });
-  label.anchor.set(0.5, 1);
-  label.y = -10;
-
-  const padX = 6;
-  const padY = 3;
-  const bg = new PIXI.Graphics();
-  bg.beginFill(0x000000, 0.5);
-  bg.drawRoundedRect(-label.width / 2 - padX, -label.height - 10 - padY, label.width + padX * 2, label.height + padY * 2, 4);
-  bg.endFill();
-
-  cont.addChild(bg, label);
-  cont.on("pointerover", () => cont.scale.set(1.08));
-  cont.on("pointerout", () => cont.scale.set(1));
-  cont.on("pointerdown", (ev) => {
-    ev?.stopPropagation?.();
-    ui.notifications?.info?.(t("DAT.Stairs.UseHint"));
-  });
-  return cont;
 }
 
 /** Recompute and redraw the player's portal labels (own token, current level). */
