@@ -14,7 +14,7 @@ import { MODULE_ID } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { getSceneLevels, getCurrentLevelId, viewLevel } from "./levels.js";
 import { getPortalLinkGroups, regionLevelId } from "./portal/portal-core.js";
-import { updateLevel, setStartLevel, moveLevel, openNativeLevels } from "./scene-levels-edit.js";
+import { updateLevel, setStartLevel, moveLevel, openNativeLevels, replaceLevelImage, addLevel, removeLevel } from "./scene-levels-edit.js";
 import { buildThumb } from "./floor-rows.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -38,6 +38,9 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       setStart: DALevelManager.#onSetStart,
       moveUp: DALevelManager.#onMoveUp,
       moveDown: DALevelManager.#onMoveDown,
+      replaceImage: DALevelManager.#onReplaceImage,
+      addFloor: DALevelManager.#onAddFloor,
+      removeFloor: DALevelManager.#onRemoveFloor,
       openNative: DALevelManager.#onOpenNative,
       importFolder: DALevelManager.#onImport,
       addStairs: DALevelManager.#onAddStairs
@@ -202,6 +205,66 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static #onOpenNative() { openNativeLevels(canvas?.scene); }
+
+  /** Swap the selected floor's map image via a media picker (keeps stairs/tokens/lights). */
+  static #onReplaceImage() {
+    const scene = canvas?.scene;
+    const id = this._selectedId;
+    if (!scene || !id) return;
+    const FilePicker = foundry.applications.apps?.FilePicker?.implementation;
+    if (!FilePicker) { ui.notifications?.warn?.(t("DAT.Dash.NoPicker")); return; }
+    const current = getSceneLevels(scene).find((l) => l._id === id)?.background?.src ?? "";
+    const picker = new FilePicker({
+      type: "imagevideo",
+      current,
+      callback: async (path) => {
+        if (path) { await replaceLevelImage(scene, id, path); this.render(); }
+      }
+    });
+    picker.browse(current).catch(() => { /* cancelled — ignore */ });
+  }
+
+  /** Add a new floor from a picked media file; select it once created. */
+  static #onAddFloor() {
+    const scene = canvas?.scene;
+    if (!scene) return;
+    const FilePicker = foundry.applications.apps?.FilePicker?.implementation;
+    if (!FilePicker) { ui.notifications?.warn?.(t("DAT.Dash.NoPicker")); return; }
+    const picker = new FilePicker({
+      type: "imagevideo",
+      current: "",
+      callback: async (path) => {
+        const name = path ? decodeURIComponent(path.split("/").pop().replace(/\.[^.]+$/, "")) : undefined;
+        const newId = await addLevel(scene, { src: path, name });
+        if (newId) this._selectedId = newId;
+        this.render();
+      }
+    });
+    picker.browse("").catch(() => { /* cancelled — ignore */ });
+  }
+
+  /** Remove the selected floor after a confirm that spells out the non-cascade caveat. */
+  static async #onRemoveFloor() {
+    const scene = canvas?.scene;
+    const id = this._selectedId;
+    if (!scene || !id) return;
+    const name = getSceneLevels(scene).find((l) => l._id === id)?.name || "this floor";
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const DialogV2 = foundry.applications.api?.DialogV2;
+    let ok = true;
+    if (typeof DialogV2?.confirm === "function") {
+      ok = await DialogV2.confirm({
+        window: { title: t("DAT.Dash.RemoveTitle") },
+        content: `<p>${t("DAT.Dash.RemoveConfirm", { name: esc(name) })}</p>`,
+        modal: true,
+        rejectClose: false
+      });
+    }
+    if (!ok) return;
+    await removeLevel(scene, id);
+    this._selectedId = null;   // force re-resolve to a surviving floor on next render
+    this.render();
+  }
 
   // Bridges to the existing flows until import (P3) and stairs (P5) fold in.
   static #onImport() { game.modules.get(MODULE_ID).api.Importer(); }
