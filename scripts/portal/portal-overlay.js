@@ -31,6 +31,11 @@ let _drawDebounce = null;
 let _raf = null;
 /** One-time diagnostic so live testing can confirm the drag hook actually fires. */
 let _refreshSeen = false;
+/** Hover/select info-card (a DOM element) + the region id it's pinned to (selected). */
+let _card = null;
+let _pinnedId = null;
+/** Per-on-level-end card content, keyed by region id; rebuilt every draw. */
+const _cardInfo = new Map();
 
 /** Friendly glyph per portal mode. */
 const MODE_GLYPH = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
@@ -81,8 +86,12 @@ export function teardownPortalOverlay() {
     _labels?.parent?.removeChild(_labels);
     _labels?.destroy({ children: true });
   } catch (_) { /* ignore */ }
+  try { _card?.remove(); } catch (_) { /* ignore */ }
   _overlay = null;
   _labels = null;
+  _card = null;
+  _pinnedId = null;
+  _cardInfo.clear();
 }
 
 /**
@@ -99,6 +108,7 @@ export function drawPortalOverlay() {
   try {
     g.clear();
     if (labels) for (const c of labels.removeChildren()) c.destroy({ children: true });
+    _cardInfo.clear();
 
     const currentLevel = getCurrentLevelId(scene);
     const ringR = (scene.grid?.size ?? 100) * 0.35;
@@ -138,6 +148,28 @@ export function drawPortalOverlay() {
           labels.addChild(icon);
         }
         onCenters.push({ e, c });
+      }
+
+      // Hover/select card content for each on-level end (its name, mode, and where
+      // its partner ends go).
+      for (const { e, c } of onCenters) {
+        const id = e.region.id ?? e.region._id;
+        if (!id) continue;
+        const destParts = [];
+        if (currentLevel) {
+          for (const p of entries) {
+            if (p === e) continue;
+            const plid = regionLevelId(p.region);
+            if (plid === currentLevel) destParts.push("same floor");
+            else destParts.push(`${(elevById.get(plid) ?? 0) > viewedBottom ? "↑" : "↓"} ${nameById.get(plid) ?? "—"}`);
+          }
+        }
+        _cardInfo.set(id, {
+          label: e.portal?.label || "Stairs",
+          mode: e.portal?.mode || "stairs",
+          dest: [...new Set(destParts)].join(", "),
+          center: c
+        });
       }
 
       // SAME-FLOOR: translucent line + midpoint label between on-level ends. Anchor
@@ -200,6 +232,53 @@ function scheduleDrawFast() {
   }
 }
 
+/** Convert a world point to page (client) coords for positioning the DOM card. */
+function worldToClient(world) {
+  try {
+    const t = canvas?.stage?.worldTransform;
+    if (t && typeof t.apply === "function") {
+      const p = t.apply({ x: world.x, y: world.y });
+      const rect = canvas?.app?.view?.getBoundingClientRect?.();
+      return { x: p.x + (rect?.left ?? 0), y: p.y + (rect?.top ?? 0) };
+    }
+  } catch (_) { /* fall through */ }
+  return null;
+}
+
+/** Lazily create the DOM info-card element. */
+function ensureCard() {
+  if (_card && _card.isConnected) return _card;
+  _card = document.createElement("div");
+  _card.className = "da-portal-card";
+  _card.style.display = "none";
+  document.body.appendChild(_card);
+  return _card;
+}
+
+/** Show the hover/select card for a stored portal end. No-op if it can't be placed. */
+function showCard(info) {
+  if (!info) return;
+  const pos = worldToClient(info.center);
+  if (!pos) return;   // can't resolve screen coords -> skip (degrade to no card)
+  const card = ensureCard();
+  card.replaceChildren();
+  const title = document.createElement("div");
+  title.className = "da-portal-card-title";
+  title.textContent = info.label;
+  const sub = document.createElement("div");
+  sub.className = "da-portal-card-sub";
+  sub.textContent = info.dest ? `${info.mode} · ${info.dest}` : info.mode;
+  card.append(title, sub);
+  card.style.left = `${pos.x}px`;
+  card.style.top = `${pos.y - 10}px`;
+  card.style.display = "block";
+}
+
+/** Hide the info-card. */
+function hideCard() {
+  if (_card) _card.style.display = "none";
+}
+
 /**
  * Register the hooks that keep the overlay fresh. Called once at init. Redraws on
  * canvas ready, on a level change (our own `daLevelChanged` signal), and on
@@ -227,6 +306,38 @@ export function registerPortalOverlayHooks() {
         console.debug("[DA Toolkit] refreshRegion is live — portal overlay will follow drags in real time.");
       }
       scheduleDrawFast();
+    } catch (_) { /* ignore */ }
+  });
+
+  // Hover / select a portal region -> show an info-card (name · type · destination).
+  // If these hooks aren't present on the build, no card shows (lines/badges still do).
+  Hooks.on("hoverRegion", (region, hovered) => {
+    try {
+      if (!game.user?.isGM) return;
+      const doc = region?.document ?? region;
+      if (doc?.parent?.id !== canvas?.scene?.id) return;
+      const id = doc.id ?? doc._id;
+      if (hovered) {
+        const info = _cardInfo.get(id);
+        if (info) showCard(info);
+      } else if (!_pinnedId) {
+        hideCard();
+      }
+    } catch (_) { /* ignore */ }
+  });
+  Hooks.on("controlRegion", (region, controlled) => {
+    try {
+      if (!game.user?.isGM) return;
+      const doc = region?.document ?? region;
+      if (doc?.parent?.id !== canvas?.scene?.id) return;
+      const id = doc.id ?? doc._id;
+      if (controlled) {
+        const info = _cardInfo.get(id);
+        if (info) { _pinnedId = id; showCard(info); }
+      } else if (_pinnedId === id) {
+        _pinnedId = null;
+        hideCard();
+      }
     } catch (_) { /* ignore */ }
   });
 }
