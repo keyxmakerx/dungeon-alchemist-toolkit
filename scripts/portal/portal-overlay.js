@@ -17,7 +17,7 @@
  * rather than breaking the canvas.
  */
 
-import { getPortalLinkGroups, regionCenter, regionLevelId } from "./portal-core.js";
+import { getPortalLinkGroups, regionCenter, regionLevelId, getPortalFlag } from "./portal-core.js";
 import { getCurrentLevelId, getSceneLevels } from "../levels.js";
 import { linkColor } from "./portal-color.js";
 import { drawCanvasLabel } from "./canvas-label.js";
@@ -27,6 +27,10 @@ let _overlay = null;
 /** @type {PIXI.Container|null} Sibling layer for text (icons, labels, badges). */
 let _labels = null;
 let _drawDebounce = null;
+/** Pending requestAnimationFrame/timeout id for the fast (drag) redraw path. */
+let _raf = null;
+/** One-time diagnostic so live testing can confirm the drag hook actually fires. */
+let _refreshSeen = false;
 
 /** Friendly glyph per portal mode. */
 const MODE_GLYPH = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
@@ -64,6 +68,11 @@ function ensureLabelLayer() {
 /** Remove the overlay (on scene teardown). */
 export function teardownPortalOverlay() {
   clearTimeout(_drawDebounce);
+  if (_raf != null) {
+    try { if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(_raf); } catch (_) { /* ignore */ }
+    try { clearTimeout(_raf); } catch (_) { /* ignore */ }
+    _raf = null;
+  }
   try {
     _overlay?.parent?.removeChild(_overlay);
     _overlay?.destroy();
@@ -178,6 +187,20 @@ function scheduleDraw() {
 }
 
 /**
+ * Fast redraw — at most one per animation frame. Used while a portal is being
+ * dragged so its line/badge tracks live; falls back to a ~16ms timeout if
+ * requestAnimationFrame isn't available.
+ */
+function scheduleDrawFast() {
+  if (_raf != null) return;
+  if (typeof requestAnimationFrame === "function") {
+    _raf = requestAnimationFrame(() => { _raf = null; drawPortalOverlay(); });
+  } else {
+    _raf = setTimeout(() => { _raf = null; drawPortalOverlay(); }, 16);
+  }
+}
+
+/**
  * Register the hooks that keep the overlay fresh. Called once at init. Redraws on
  * canvas ready, on a level change (our own `daLevelChanged` signal), and on
  * create/update/delete of a Region *on the current scene* (debounced).
@@ -189,4 +212,21 @@ export function registerPortalOverlayHooks() {
   for (const hook of ["createRegion", "updateRegion", "deleteRegion"]) {
     Hooks.on(hook, (doc) => { if (doc?.parent?.id === canvas?.scene?.id) scheduleDraw(); });
   }
+
+  // Drag-follow: a region placeable re-renders during a drag, firing refreshRegion.
+  // Fast-redraw (RAF-coalesced) only for portal regions on this scene, so the line/
+  // badge tracks live. If this hook never fires on the running build, the drop is
+  // still covered by updateRegion above — the line just snaps into place on release.
+  Hooks.on("refreshRegion", (region) => {
+    try {
+      const doc = region?.document ?? region;
+      if (doc?.parent?.id !== canvas?.scene?.id) return;
+      if (!getPortalFlag(doc)) return;
+      if (!_refreshSeen) {
+        _refreshSeen = true;
+        console.debug("[DA Toolkit] refreshRegion is live — portal overlay will follow drags in real time.");
+      }
+      scheduleDrawFast();
+    } catch (_) { /* ignore */ }
+  });
 }
