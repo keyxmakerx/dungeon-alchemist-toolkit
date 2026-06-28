@@ -1,3 +1,8 @@
+# 0.3.1
+
+## [Fixed]
+- **Removed the scene-controls toolbar group.** Custom control groups have open core bugs in early v14, and the group appeared to interfere with native **floor/level selection** on the canvas (and added a confusing second stairs entry). The toolkit is reached via *Module Settings → Open the Toolkit* (or the `DA` API) until the entry point is redesigned (see `docs/REWORK-PLAN.md`).
+
 # 0.3.0
 
 Stairs/portal UX rework (phases 5–10 of `docs/REWORK-PLAN.md`). Still pending a

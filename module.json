@@ -1,7 +1,7 @@
 {
   "id": "dungeon-alchemist-toolkit",
   "title": "Dungeon Alchemist Toolkit",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A Dungeon Alchemist to Foundry VTT v14+ toolkit: imports multi-floor DA exports into a single Scene using native Scene Levels (walls, doors, and lights bound per floor) and adds level/region tooling.",
   "compatibility": {
     "minimum": "14",
