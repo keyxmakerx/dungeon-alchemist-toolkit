@@ -1,15 +1,23 @@
 <div class="da-import">
 
-  <div class="form-group da-folder-group">
-    <label>Dungeon Alchemist Export Folder</label>
-    <div class="form-fields">
-      <input type="text" name="folder" placeholder="Path to exported folder..." readonly />
-      <input type="hidden" name="source" value="data" />
-      <button type="button" data-action="browse">
-        <i class="fas fa-folder-open"></i> Browse
-      </button>
+  <div class="da-browse">
+    <div class="da-browse-bar">
+      <label class="da-browse-src">Source
+        <select name="sourceSelect">
+          <option value="data">User Data</option>
+          <option value="public">Core Data</option>
+        </select>
+      </label>
+      <button type="button" class="da-browse-up" data-action="browseUp" data-tooltip="Up one folder"><i class="fa-solid fa-arrow-up"></i></button>
+      <span class="da-browse-path">/ (root)</span>
+      <span class="da-dash-spacer"></span>
+      <button type="button" class="da-browse-syspick" data-action="browse" data-tooltip="Jump to a folder with the system file picker"><i class="fa-solid fa-folder-open"></i></button>
     </div>
-    <p class="hint">Pick the folder Dungeon Alchemist exported (level media + JSON). Its floors appear below — no guessing whether you got the right one.</p>
+    <p class="hint">Open the folder Dungeon Alchemist exported — its floors are detected and offered for import automatically as you browse.</p>
+    <div class="da-browse-dirs"></div>
+    <p class="da-browse-status"></p>
+    <input type="hidden" name="folder" value="" />
+    <input type="hidden" name="source" value="data" />
   </div>
 
   <div class="da-import-floors">
@@ -31,7 +39,6 @@
       </ul>
     </div>
 
-    <p class="hint da-levels-placeholder">Pick a folder above to see its floors.</p>
     <div class="da-levels-list"></div>
     <p class="da-import-orphans" hidden></p>
     <p class="hint da-import-droptip" hidden>Drag a row by its <strong>#</strong> to reorder · hover a thumbnail for its filename and size · each name is pre-filled from the original file.</p>
@@ -162,8 +169,8 @@
   </details>
 
   <footer class="sheet-footer flexrow">
-    <button type="button" data-action="import">
-      <i class="fas fa-file-import"></i> Import
+    <button type="button" data-action="import" disabled>
+      <i class="fas fa-file-import"></i> <span class="da-import-btn-label">Import</span>
     </button>
   </footer>
 </div>

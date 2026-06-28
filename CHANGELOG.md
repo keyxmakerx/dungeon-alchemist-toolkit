@@ -9,7 +9,7 @@ stair visualization and inline stairs management follow in 0.5.0.
 - **Unpaired-file warning on import.** A folder with an image that has no JSON (or vice-versa) now shows an inline warning listing what was skipped, instead of silently importing fewer floors.
 
 ## [Changed]
-- **Import is preview-first.** Picking a folder now opens straight to the detected **floors** (thumbnails / names / count) — previously they were buried behind the third tab, so you'd "pick a folder and hope". Scene background/grid/door options moved into a collapsible **Scene & door options** section.
+- **Import has an in-window folder browser.** Instead of an OS file dialog + "pick a folder and hope", you now **browse folders inside the window** (source switch, Up, clickable subfolders) and the moment you open a folder containing Dungeon Alchemist floors they're **auto-detected and offered for import** ("Import 5 floors"), with the detected floors (thumbnails / names / count) previewed right there. Scene background/grid/door options moved into a collapsible **Scene & door options** section. The system file picker remains as a one-click shortcut.
 
 ## [Notes]
 - Floor edits are written safely: every change sends the **complete `levels` array** via `scene.update`, then reads it back and warns on count/id drift (worst case a no-op, never data loss). All level writes are **serialized** so a fast edit-then-click can't clobber. Reorder **swaps elevation bands** (the list is elevation-ordered); because regions bind by level `_id`, **stairs stay attached** through any rename or reorder.
