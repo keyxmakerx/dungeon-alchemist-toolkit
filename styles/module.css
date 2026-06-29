@@ -803,3 +803,35 @@ body.da-region-picking canvas {
 }
 .da-portal-card-title { font-weight: 700; font-size: 13px; }
 .da-portal-card-sub { font-size: 11px; color: var(--color-text-light-6, #aab); margin-top: 1px; text-transform: capitalize; }
+
+/* Dashboard tabs (Floors / Import / Stairs) */
+#da-level-manager .da-dash-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-border-light-primary, #3a3a52); margin-bottom: 0.6rem; }
+#da-level-manager .da-dash-tab {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer;
+  padding: 0.5rem 0.9rem; font-size: 13px; font-weight: 600; color: var(--color-text-light-6, #8a8aa0);
+}
+#da-level-manager .da-dash-tab:hover { color: var(--color-text-light-1, #ccc); }
+#da-level-manager .da-dash-tab.active { color: #fff; border-bottom-color: var(--color-level-1, #5b9cf0); }
+
+/* Stairs tab — one row per link with goto/edit/delete */
+#da-level-manager .da-dash-panel { padding: 0.2rem 0 0.4rem; }
+#da-level-manager .da-dash-stairs-hd { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+#da-level-manager .da-link-row {
+  display: grid; grid-template-columns: 22px 1fr auto; gap: 0.6rem; align-items: center;
+  padding: 0.45rem 0.5rem; border: 1px solid var(--color-border-light-primary, #3a3a52);
+  border-radius: 7px; margin-bottom: 0.4rem; background: rgba(0, 0, 0, 0.18);
+}
+#da-level-manager .da-link-actions { display: flex; gap: 0.25rem; align-items: center; }
+#da-level-manager .da-link-btn {
+  width: 28px; height: 28px; flex: 0 0 auto; cursor: pointer; border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18); border: 1px solid var(--color-border-light-primary, #3a3a52);
+  color: var(--color-text-light-1, #e8e8f0);
+}
+#da-level-manager .da-link-btn:hover { background: rgba(255, 255, 255, 0.06); }
+#da-level-manager .da-link-btn--danger { color: #e98b74; border-color: #6b2e22; }
+
+/* Import tab (interim launcher until the browser folds in) */
+#da-level-manager .da-dash-import-tab { padding: 0.4rem 0; }
+#da-level-manager .da-dash-import-intro { font-size: 14px; color: var(--color-text-light-1, #e8e8f0); margin: 0 0 0.6rem; }
+#da-level-manager .da-dash-import-go { width: auto; }

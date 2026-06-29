@@ -13,7 +13,7 @@
 import { MODULE_ID } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { getSceneLevels, getCurrentLevelId, viewLevel } from "./levels.js";
-import { getPortalLinkGroups, regionLevelId } from "./portal/portal-core.js";
+import { getPortalLinkGroups, getScenePortals, deletePortalLink, bindPortals, regionCenter, regionLevelId } from "./portal/portal-core.js";
 import { updateLevel, setStartLevel, moveLevel, openNativeLevels, replaceLevelImage, addLevel, removeLevel } from "./scene-levels-edit.js";
 import { buildThumb } from "./floor-rows.js";
 
@@ -25,6 +25,8 @@ const STAIR_ICONS = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
 export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Currently-selected floor `_id` (null → default to the viewed/bottom floor). */
   _selectedId = null;
+  /** Active tab: "floors" | "import" | "stairs". */
+  _tab = "floors";
 
   static DEFAULT_OPTIONS = {
     id: "da-level-manager",
@@ -33,6 +35,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     window: { title: "DAT.Dash.Title", icon: "fa-solid fa-dungeon", resizable: true },
     position: { width: 720, height: "auto" },
     actions: {
+      switchTab: DALevelManager.#onSwitchTab,
       viewFloor: DALevelManager.#onViewFloor,
       saveFloor: DALevelManager.#onSaveFloor,
       setStart: DALevelManager.#onSetStart,
@@ -43,7 +46,10 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       removeFloor: DALevelManager.#onRemoveFloor,
       openNative: DALevelManager.#onOpenNative,
       importFolder: DALevelManager.#onImport,
-      addStairs: DALevelManager.#onAddStairs
+      addStairs: DALevelManager.#onAddStairs,
+      gotoStair: DALevelManager.#onGotoStair,
+      editStair: DALevelManager.#onEditStair,
+      removeStair: DALevelManager.#onRemoveStair
     }
   };
 
@@ -105,13 +111,36 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     stairs.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
 
+    // Every link across the scene, for the Stairs tab (link-aware, cross-floor).
+    const links = [];
+    for (const [linkId, entries] of getPortalLinkGroups(scene)) {
+      const first = entries[0]?.portal ?? {};
+      const mode = first.mode || "stairs";
+      const ends = entries.map((e) => ({ regionId: e.region.id, levelName: levelName(regionLevelId(e.region)) }));
+      links.push({
+        linkId,
+        label: first.label || "Stairs",
+        mode,
+        icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs,
+        ends: ends.map((x) => x.levelName).join(" ⟷ "),
+        gotoEnds: ends.map((x) => ({ regionId: x.regionId, tip: t("DAT.Dash.GotoEnd", { floor: x.levelName }) }))
+      });
+    }
+    links.sort((a, b) => (a.label || "").localeCompare(b.label || "") || a.linkId.localeCompare(b.linkId));
+
     const sel = levelsAsc.find((l) => l._id === selectedId);
     const selIdx = levelsAsc.findIndex((l) => l._id === selectedId);   // bottom-first index
+    const tab = this._tab || "floors";
     return {
       hasScene: true,
       sceneName: scene.name,
       floorCount: levelsAsc.length,
+      tab,
+      isFloors: tab === "floors",
+      isImport: tab === "import",
+      isStairs: tab === "stairs",
       floors,
+      links,
       selected: {
         name: sel?.name || "Level",
         bottom: sel?.elevation?.bottom ?? 0,
@@ -266,7 +295,117 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  // Bridges to the existing flows until import (P3) and stairs (P5) fold in.
+  static #onSwitchTab(_event, target) {
+    const tab = target?.dataset?.tab;
+    if (!tab || tab === this._tab) return;
+    this._tab = tab;
+    this.render();
+  }
+
+  /** Select & pan to a portal end (and best-effort switch to its level). */
+  static async #onGotoStair(_event, target) {
+    const scene = canvas?.scene;
+    const region = scene?.regions?.get(target?.dataset?.regionId);
+    if (!region) { ui.notifications?.warn?.(t("DAT.Stairs.GoneRegion")); return; }
+    try { await viewLevel(regionLevelId(region)); } catch (_) { /* non-fatal */ }
+    const c = regionCenter(region);
+    if (c && typeof canvas?.animatePan === "function") canvas.animatePan({ x: c.x, y: c.y, duration: 250 });
+    try { canvas?.regions?.activate?.(); } catch (_) { /* non-fatal */ }
+    try { region.object?.control?.({ releaseOthers: true }); } catch (_) { /* non-fatal */ }
+  }
+
+  /**
+   * Link-aware editor: rename the whole link, change its type/two-way, or fall back
+   * to the native region sheet for shape/elevation — writing through the shared
+   * bindPortals path so both ends stay consistent. (Lifted from the standalone
+   * Stairs Manager, now folded into this tab.)
+   */
+  static async #onEditStair(_event, target) {
+    const linkId = target?.dataset?.linkId;
+    const scene = canvas?.scene;
+    const entries = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId);
+    if (!entries.length) { ui.notifications?.warn?.(t("DAT.Stairs.GoneLink")); return; }
+    const entrance = entries.find((e) => e.portal?.role === "entrance") ?? entries[0];
+    const others = entries.filter((e) => e !== entrance);
+    const regions = [entrance.region, ...others.map((e) => e.region)];
+
+    const cur = entrance.portal ?? {};
+    const curMode = cur.mode || "stairs";
+    const curLabel = cur.label || "Stairs";
+    const curTwoWay = others.length
+      ? others.every((e) => (e.region.behaviors?.contents ?? Array.from(e.region.behaviors ?? [])).some((b) => b.type === "teleportToken"))
+      : (curMode !== "trap");
+
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const modeOpts = ["stairs", "teleport", "trap"]
+      .map((m) => `<option value="${m}"${m === curMode ? " selected" : ""}>${m}</option>`).join("");
+    const content = `
+      <div class="da-stairs-opts">
+        <div class="form-group"><label>Label</label>
+          <input type="text" name="label" value="${esc(curLabel)}" /></div>
+        <div class="form-group"><label>Type</label>
+          <select name="mode">${modeOpts}</select></div>
+        <label class="da-stairs-opts-check">
+          <input type="checkbox" name="twoWay"${curTwoWay ? " checked" : ""} /> Two-way (destination links back)</label>
+      </div>`;
+
+    const choice = await foundry.applications.api.DialogV2.wait({
+      window: { title: t("DAT.Stairs.EditTitle") },
+      content,
+      buttons: [
+        {
+          action: "save", label: t("DAT.Stairs.BtnSave"), icon: "fas fa-check", default: true,
+          callback: (_e, btn) => {
+            const f = btn?.form;
+            return {
+              action: "save",
+              label: f?.elements?.label?.value?.trim() || "Stairs",
+              mode: f?.elements?.mode?.value || "stairs",
+              twoWay: f?.elements?.twoWay?.checked ?? true
+            };
+          }
+        },
+        { action: "sheet", label: t("DAT.Stairs.BtnSheet"), icon: "fas fa-pen-to-square", callback: () => ({ action: "sheet" }) },
+        { action: "cancel", label: t("DAT.Stairs.BtnCancel"), icon: "fas fa-xmark", callback: () => ({ action: "cancel" }) }
+      ],
+      rejectClose: false
+    }).catch(() => null);
+
+    if (!choice || choice.action === "cancel") return;
+    if (choice.action === "sheet") { entrance.region.sheet?.render(true); return; }
+    try {
+      await bindPortals({ regions, mode: choice.mode, label: choice.label, twoWay: choice.twoWay });
+      ui.notifications?.info?.(t("DAT.Stairs.Updated"));
+    } catch (err) {
+      ui.notifications?.error?.(t("DAT.Stairs.UpdateFailed", { error: err.message }));
+      console.error(err);
+    }
+    this.render();
+  }
+
+  /** Delete both ends of a link (with confirm). */
+  static async #onRemoveStair(_event, target) {
+    const linkId = target?.dataset?.linkId;
+    const scene = canvas?.scene;
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: t("DAT.Stairs.DeleteTitle") },
+      content: "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
+      rejectClose: false,
+      modal: true
+    }).catch(() => false);
+    if (!ok) return;
+    try {
+      await deletePortalLink(scene, linkId);
+      ui.notifications?.info?.(t("DAT.Stairs.Deleted"));
+    } catch (err) {
+      ui.notifications?.error?.(t("DAT.Stairs.DeleteFailed", { error: err.message }));
+      console.error(err);
+    }
+    this.render();
+  }
+
+  // Import still opens the dedicated importer window (folded into this tab next);
+  // Add Stairs runs the on-canvas guided placement.
   static #onImport() { game.modules.get(MODULE_ID).api.Importer(); }
   static #onAddStairs() { game.modules.get(MODULE_ID).api.AddStairs(); }
 }
