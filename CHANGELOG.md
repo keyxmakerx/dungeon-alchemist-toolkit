@@ -1,19 +1,19 @@
 # 0.4.0
 
-**Dashboard editing + preview-first import** (redesign Concept A, P2–P3). The Level
-Manager is now a real editor, and importing opens straight to your floors. Canvas
-stair visualization and inline stairs management follow in 0.5.0.
+**The Level Manager becomes a full manager** (redesign Concept A). The dashboard now
+fully manages a scene's floors, imports straight to your floors via an in-window
+folder browser, and visualizes every stair/portal/trap on the canvas.
 
 ## [Added]
-- **Inline floor editing in the Level Manager.** Select a floor and edit it on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, and **reorder ↑/↓**. An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility and floor deletion.
-- **Unpaired-file warning on import.** A folder with an image that has no JSON (or vice-versa) now shows an inline warning listing what was skipped, instead of silently importing fewer floors.
-
-## [Changed]
-- **Import has an in-window folder browser.** Instead of an OS file dialog + "pick a folder and hope", you now **browse folders inside the window** (source switch, Up, clickable subfolders) and the moment you open a folder containing Dungeon Alchemist floors they're **auto-detected and offered for import** ("Import 5 floors"), with the detected floors (thumbnails / names / count) previewed right there. Scene background/grid/door options moved into a collapsible **Scene & door options** section. The system file picker remains as a one-click shortcut.
+- **Full floor management in the Level Manager.** Select a floor and, on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, **reorder ↑/↓**, **swap the map image** (keeps the floor's stairs/tokens/lights), **add** a floor from an image/video, and **remove** a floor (behind a confirm). An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility.
+- **In-window import folder browser.** Instead of an OS dialog + "pick a folder and hope", **browse folders inside the window** (source switch, Up, clickable subfolders); the moment you open a folder with Dungeon Alchemist floors they're **auto-detected and offered** ("Import 5 floors"), with thumbnails / names / count previewed inline. Scene/grid/door options collapse into a **Scene & door options** section; the system picker remains as a one-click shortcut.
+- **On-canvas stair/portal/trap visualization (GM).** Each linked pair draws in its **own colour** with a **mode icon**; two ends on the **same floor** get a translucent **connecting line + name label**; an end whose partner is on **another floor** gets a **"↑ Floor"/"↓ Floor" badge** (covering straight up/down). **Hover or select** a marker for a card (name · type · destination), and **drag** a marker to have its line/badge follow.
+- **Unpaired-file warning on import** — a folder with an image but no JSON (or vice-versa) lists what was skipped instead of silently importing fewer floors.
 
 ## [Notes]
-- Floor edits are written safely: every change sends the **complete `levels` array** via `scene.update`, then reads it back and warns on count/id drift (worst case a no-op, never data loss). All level writes are **serialized** so a fast edit-then-click can't clobber. Reorder **swaps elevation bands** (the list is elevation-ordered); because regions bind by level `_id`, **stairs stay attached** through any rename or reorder.
-- Statically verified (`node --check`, JSON-valid, template/selector contract checked); pending a live v14 confirmation as usual.
+- Floor edits use a safe write path: every change sends the **complete `levels` array** via `scene.update`, reads it back, and warns on count/id drift (worst case a no-op, never data loss). Writes are **serialized**; reorder **swaps elevation bands** and, because regions bind by level `_id`, **stairs stay attached** through any rename/reorder/image-swap.
+- The canvas overlay is GM-only and fully feature-detected: if a v14 hook is absent it degrades cleanly (drag-follow falls back to **snap-on-drop**; the hover card simply doesn't show) — the lines/badges always draw.
+- Statically verified (`node --check`, JSON-valid, selector/action contracts) and put through a four-lens adversarial code review (correctness, v14-API safety, PIXI/DOM lifecycle, design fidelity) — no critical/high findings; the player-overlay refactor was verified behaviour-preserving. Still pending a live v14 confirmation in a running world, as usual.
 
 # 0.3.2
 
