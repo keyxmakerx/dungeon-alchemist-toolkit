@@ -6,7 +6,9 @@
  * `PIXI.Text` over a rounded-rect background, anchored above its centre point.
  *
  * Pure presentation — no Foundry document access. The caller adds the returned
- * container to its own layer (it's positioned at `center`).
+ * container to its own layer (it's positioned at `center`). Self-degrading: if a PIXI
+ * surface ever changes (e.g. a v7→v8 Text/Graphics API break), it returns an empty
+ * container so the caller's addChild stays safe rather than throwing.
  *
  * @param {{x:number,y:number}} center  World coords the label sits above.
  * @param {string} text
@@ -27,42 +29,46 @@ export function drawCanvasLabel(center, text, opts = {}) {
     offsetY = -10, interactive = false, cursor = "help", onClick = null
   } = opts;
 
-  const cont = new PIXI.Container();
-  cont.x = center.x;
-  cont.y = center.y;
+  try {
+    const cont = new PIXI.Container();
+    cont.x = center.x;
+    cont.y = center.y;
 
-  const label = new PIXI.Text(String(text), {
-    fontFamily: "Signika, sans-serif",
-    fontSize,
-    fill,
-    stroke: 0x000000,
-    strokeThickness: 3,
-    align: "center"
-  });
-  label.anchor.set(0.5, 1);
-  label.y = offsetY;
+    const label = new PIXI.Text(String(text), {
+      fontFamily: "Signika, sans-serif",
+      fontSize,
+      fill,
+      stroke: 0x000000,
+      strokeThickness: 3,
+      align: "center"
+    });
+    label.anchor.set(0.5, 1);
+    label.y = offsetY;
 
-  const padX = 6;
-  const padY = 3;
-  const bgGfx = new PIXI.Graphics();
-  bgGfx.beginFill(bg, bgAlpha);
-  bgGfx.drawRoundedRect(
-    -label.width / 2 - padX,
-    offsetY - label.height - padY,
-    label.width + padX * 2,
-    label.height + padY * 2,
-    4
-  );
-  bgGfx.endFill();
+    const padX = 6;
+    const padY = 3;
+    const bgGfx = new PIXI.Graphics();
+    bgGfx.beginFill(bg, bgAlpha);
+    bgGfx.drawRoundedRect(
+      -label.width / 2 - padX,
+      offsetY - label.height - padY,
+      label.width + padX * 2,
+      label.height + padY * 2,
+      4
+    );
+    bgGfx.endFill();
 
-  cont.addChild(bgGfx, label);
+    cont.addChild(bgGfx, label);
 
-  if (interactive) {
-    cont.eventMode = "static";
-    cont.cursor = cursor;
-    cont.on("pointerover", () => cont.scale.set(1.08));
-    cont.on("pointerout", () => cont.scale.set(1));
-    if (onClick) cont.on("pointerdown", onClick);
+    if (interactive) {
+      cont.eventMode = "static";
+      cont.cursor = cursor;
+      cont.on("pointerover", () => cont.scale.set(1.08));
+      cont.on("pointerout", () => cont.scale.set(1));
+      if (onClick) cont.on("pointerdown", onClick);
+    }
+    return cont;
+  } catch (_) {
+    try { return new PIXI.Container(); } catch (_2) { return null; }
   }
-  return cont;
 }

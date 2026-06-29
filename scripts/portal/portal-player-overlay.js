@@ -49,6 +49,10 @@ function ensureLayer() {
   const parent = canvas?.interface ?? canvas?.controls;
   if (!parent) return null;
   if (_layer && !_layer.destroyed && _layer.parent) return _layer;
+  // Self-heal: a prior layer detached by a canvas rebuild (without canvasTearDown)
+  // is destroyed here rather than leaked.
+  try { _layer?.destroy({ children: true }); } catch (_) { /* ignore */ }
+  _layer = null;
   try {
     _layer = new PIXI.Container();
     _layer.zIndex = 200;
@@ -109,6 +113,8 @@ function scheduleRefresh() {
 }
 
 export function teardownPlayerPortalLabels() {
+  clearTimeout(_debounce);
+  _debounce = null;
   try {
     _layer?.parent?.removeChild(_layer);
     _layer?.destroy({ children: true });
