@@ -2,10 +2,15 @@
   {{#if hasScene}}
   <div class="da-dash-top">
     <span class="da-dash-scene">{{localize "DAT.Dash.Scene"}}: <b>{{sceneName}}</b> · {{floorCount}} {{localize "DAT.Dash.Floors"}}</span>
-    <span class="da-dash-spacer"></span>
-    <button type="button" class="da-dash-btn" data-action="importFolder"><i class="fa-solid fa-file-import"></i> {{localize "DAT.Controls.Import"}}</button>
-    <button type="button" class="da-dash-btn" data-action="addStairs"><i class="fa-solid fa-stairs"></i> {{localize "DAT.Controls.AddStairs"}}</button>
   </div>
+
+  <nav class="da-dash-tabs">
+    <button type="button" class="da-dash-tab{{#if isFloors}} active{{/if}}" data-action="switchTab" data-tab="floors"><i class="fa-solid fa-layer-group"></i> {{localize "DAT.Dash.TabFloors"}}</button>
+    <button type="button" class="da-dash-tab{{#if isImport}} active{{/if}}" data-action="switchTab" data-tab="import"><i class="fa-solid fa-file-import"></i> {{localize "DAT.Dash.TabImport"}}</button>
+    <button type="button" class="da-dash-tab{{#if isStairs}} active{{/if}}" data-action="switchTab" data-tab="stairs"><i class="fa-solid fa-stairs"></i> {{localize "DAT.Dash.TabStairs"}}</button>
+  </nav>
+
+  {{#if isFloors}}
   <div class="da-dash-body">
     <div class="da-dash-floors">
       <div class="da-dash-hd">{{localize "DAT.Dash.FloorsHd"}}</div>
@@ -63,6 +68,47 @@
       {{/if}}
     </div>
   </div>
+  {{/if}}
+
+  {{#if isStairs}}
+  <div class="da-dash-panel">
+    <div class="da-dash-stairs-hd">
+      <span class="da-dash-hd">{{localize "DAT.Dash.AllStairsHd"}}</span>
+      <span class="da-dash-spacer"></span>
+      <button type="button" class="da-dash-btn" data-action="addStairs"><i class="fa-solid fa-plus"></i> {{localize "DAT.Controls.AddStairs"}}</button>
+    </div>
+    {{#if links.length}}
+      {{#each links}}
+      <div class="da-link-row">
+        <span class="da-dash-stair-ic da-stairs-mode--{{this.mode}}">{{this.icon}}</span>
+        <div class="da-link-text">
+          <span class="da-dash-stair-label">{{this.label}}</span>
+          <span class="da-stairs-mode da-stairs-mode--{{this.mode}}">{{this.mode}}</span>
+          <div class="da-dash-stair-sub">{{this.ends}}</div>
+        </div>
+        <div class="da-link-actions">
+          {{#each this.gotoEnds}}
+          <button type="button" class="da-link-btn" data-action="gotoStair" data-region-id="{{this.regionId}}" data-tooltip="{{this.tip}}"><i class="fa-solid fa-location-crosshairs"></i></button>
+          {{/each}}
+          <button type="button" class="da-link-btn" data-action="editStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.EditStair"}}"><i class="fa-solid fa-pen"></i></button>
+          <button type="button" class="da-link-btn da-link-btn--danger" data-action="removeStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.RemoveStair"}}"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+      {{/each}}
+    {{else}}
+      <p class="da-dash-empty">{{localize "DAT.Dash.NoStairsAll"}}</p>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if isImport}}
+  <div class="da-dash-panel da-dash-import-tab">
+    <p class="da-dash-import-intro">{{localize "DAT.Dash.ImportIntro"}}</p>
+    <button type="button" class="da-dash-btn da-dash-import-go" data-action="importFolder"><i class="fa-solid fa-folder-open"></i> {{localize "DAT.Dash.ImportOpen"}}</button>
+    <p class="hint">{{localize "DAT.Dash.ImportTabNote"}}</p>
+  </div>
+  {{/if}}
+
   {{else}}
   <p class="da-dash-empty">{{localize "DAT.Dash.NoScene"}}</p>
   {{/if}}
