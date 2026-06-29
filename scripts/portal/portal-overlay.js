@@ -39,11 +39,18 @@ const _cardInfo = new Map();
 
 /** Friendly glyph per portal mode. */
 const MODE_GLYPH = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
+/** Cross-floor direction arrows — swap to "^"/"v" here if a build renders these as tofu. */
+const ARROW_UP = "↑";
+const ARROW_DOWN = "↓";
 
 /** Lazily (re)create the overlay Graphics on the controls layer. */
 function ensureOverlay() {
   if (!canvas?.controls) return null;
   if (_overlay && !_overlay.destroyed && _overlay.parent) return _overlay;
+  // Self-heal: a prior instance detached by a canvas rebuild (without canvasTearDown)
+  // is destroyed here rather than leaked.
+  try { _overlay?.destroy({ children: true }); } catch (_) { /* ignore */ }
+  _overlay = null;
   try {
     _overlay = new PIXI.Graphics();
     _overlay.eventMode = "none";
@@ -59,6 +66,8 @@ function ensureOverlay() {
 function ensureLabelLayer() {
   if (!canvas?.controls) return null;
   if (_labels && !_labels.destroyed && _labels.parent) return _labels;
+  try { _labels?.destroy({ children: true }); } catch (_) { /* ignore */ }
+  _labels = null;
   try {
     _labels = new PIXI.Container();
     _labels.eventMode = "none";
@@ -140,12 +149,16 @@ export function drawPortalOverlay() {
         g.lineStyle(2, color, 0.65);
         g.drawCircle(c.x, c.y, ringR);
         if (labels) {
-          const glyph = MODE_GLYPH[e.portal?.mode] ?? MODE_GLYPH.stairs;
-          const icon = new PIXI.Text(glyph, { fontFamily: "Signika, sans-serif", fontSize: Math.max(12, Math.round(ringR * 1.1)) });
-          icon.anchor.set(0.5, 0.5);
-          icon.x = c.x;
-          icon.y = c.y;
-          labels.addChild(icon);
+          // Per-icon guard: an emoji/font issue degrades this end to ring-only rather
+          // than throwing out of the whole group's draw.
+          try {
+            const glyph = MODE_GLYPH[e.portal?.mode] ?? MODE_GLYPH.stairs;
+            const icon = new PIXI.Text(glyph, { fontFamily: "Signika, sans-serif", fontSize: Math.max(12, Math.round(ringR * 1.1)) });
+            icon.anchor.set(0.5, 0.5);
+            icon.x = c.x;
+            icon.y = c.y;
+            labels.addChild(icon);
+          } catch (_) { /* ring stays; icon skipped */ }
         }
         onCenters.push({ e, c });
       }
@@ -157,17 +170,21 @@ export function drawPortalOverlay() {
         if (!id) continue;
         const destParts = [];
         if (currentLevel) {
+          const seenLids = new Set();   // dedup by level id, not by display string
           for (const p of entries) {
             if (p === e) continue;
             const plid = regionLevelId(p.region);
+            if (!plid || seenLids.has(plid)) continue;
+            seenLids.add(plid);
             if (plid === currentLevel) destParts.push("same floor");
-            else destParts.push(`${(elevById.get(plid) ?? 0) > viewedBottom ? "↑" : "↓"} ${nameById.get(plid) ?? "—"}`);
+            else if (elevById.has(plid)) destParts.push(`${elevById.get(plid) > viewedBottom ? ARROW_UP : ARROW_DOWN} ${nameById.get(plid)}`);
+            // an orphaned/deleted partner level is skipped rather than shown as "↓ —"
           }
         }
         _cardInfo.set(id, {
           label: e.portal?.label || "Stairs",
           mode: e.portal?.mode || "stairs",
-          dest: [...new Set(destParts)].join(", "),
+          dest: destParts.join(", "),
           center: c
         });
       }
@@ -193,12 +210,18 @@ export function drawPortalOverlay() {
       // badge per distinct partner level (covers straight up/down + multi-destination),
       // stacked upward. Skipped when the viewed level is unknown (no elevation to compare).
       if (offLevel.length && labels && currentLevel) {
-        const partnerLids = [...new Set(offLevel.map((e) => regionLevelId(e.region)).filter(Boolean))];
-        for (const { c } of onCenters) {
+        // Distinct, resolvable partner levels (orphaned ones are dropped).
+        const partnerLids = [...new Set(offLevel.map((e) => regionLevelId(e.region)).filter((lid) => lid && elevById.has(lid)))];
+        // On a multi-end link with several on-level ends AND a tagged entrance, badge
+        // only the entrance — so we don't imply every on-level end leads off-floor.
+        const multiOnLevel = onCenters.length > 1;
+        const hasEntrance = onCenters.some(({ e }) => e.portal?.role === "entrance");
+        for (const { e, c } of onCenters) {
+          if (multiOnLevel && hasEntrance && e.portal?.role !== "entrance") continue;
           let stack = 0;
           for (const plid of partnerLids) {
-            const up = (elevById.get(plid) ?? 0) > viewedBottom;
-            const text = `${up ? "↑" : "↓"} ${nameById.get(plid) ?? "—"}`;
+            const up = elevById.get(plid) > viewedBottom;
+            const text = `${up ? ARROW_UP : ARROW_DOWN} ${nameById.get(plid)}`;
             labels.addChild(drawCanvasLabel(c, text, {
               fontSize: 13, bg: color, bgAlpha: 0.85, offsetY: -10 - stack * 22
             }));
@@ -206,6 +229,14 @@ export function drawPortalOverlay() {
           }
         }
       }
+    }
+
+    // Keep a pinned (selected) card current after the redraw; drop it if its region
+    // is gone or moved off this level (e.g. mid-drag or after a delete).
+    if (_pinnedId) {
+      const info = _cardInfo.get(_pinnedId);
+      if (info) showCard(info);
+      else { hideCard(); _pinnedId = null; }
     }
   } catch (err) {
     console.warn("[DA Toolkit] portal overlay draw failed (non-fatal):", err);
@@ -287,7 +318,9 @@ function hideCard() {
 export function registerPortalOverlayHooks() {
   Hooks.on("canvasReady", () => drawPortalOverlay());
   Hooks.on("canvasTearDown", () => teardownPortalOverlay());
-  Hooks.on("daLevelChanged", () => scheduleDraw());
+  // The schedulers below intentionally don't gate on isGM — they only ever call
+  // drawPortalOverlay, which gates on GM at its single entry point.
+  Hooks.on("daLevelChanged", () => { if (game.user?.isGM) scheduleDraw(); });
   for (const hook of ["createRegion", "updateRegion", "deleteRegion"]) {
     Hooks.on(hook, (doc) => { if (doc?.parent?.id === canvas?.scene?.id) scheduleDraw(); });
   }
