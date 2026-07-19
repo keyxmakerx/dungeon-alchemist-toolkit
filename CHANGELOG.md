@@ -1,8 +1,33 @@
-# 0.4.0
+# 0.5.0
 
-**The Level Manager becomes a full manager** (redesign Concept A). The dashboard now
-fully manages a scene's floors, imports straight to your floors via an in-window
-folder browser, and visualizes every stair/portal/trap on the canvas.
+**The Level Manager becomes a full manager** (redesign Concept A), plus a robust
+rewrite of folder import. The dashboard now fully manages a scene's floors, imports
+straight to your floors via an in-window folder browser, and visualizes every
+stair/portal/trap on the canvas — and importing a folder now reliably produces **one
+scene with one level per floor**, whatever your files are named.
+
+> Supersedes the interim 0.4.0 (only ever offered on a non-default branch). Foundry
+> caches manifests by version, so the manager/importer work ships here as 0.5.0.
+
+## [Fixed]
+- **Importing a folder now always makes ONE scene with one level per floor.** The old
+  grouping only recognized Dungeon Alchemist's exact `-_NN` suffix, so any other floor
+  naming (custom per-floor names, `Map_0`, `Map - 0`, …) tripped a false *"this folder
+  contains N maps"* warning and mis-ordered the floors (e.g. `_10` before `_2`).
+  Grouping is now **folder-first**: every image+JSON pair is a floor of the one map,
+  floors sort by any trailing number (numeric — stable order when unnumbered), the
+  scene is named from the folder / shared filename, and the multi-map warning fires
+  only on the genuine case (two or more distinct `-_NN` map families in one folder).
+  Extracted to `scripts/floor-grouping.js` with unit tests (`node
+  test/floor-grouping.test.mjs`).
+- **Drag-reordering floors and per-floor edits now land on the right floor.** The
+  import previously re-scanned the folder and re-sorted independently of the dialog,
+  silently discarding any drag-reorder and applying names/elevations/start-floor to
+  the wrong floors. The dialog's exact order is now honored end to end.
+- **A single bad floor no longer loses the whole import.** Each floor's `.json` loads
+  independently (a corrupt one is skipped with a warning), scene dimensions fall back
+  to any floor with valid data, and a failed image copy keeps that floor on its
+  original path instead of aborting the whole import.
 
 ## [Added]
 - **Full floor management in the Level Manager.** Select a floor and, on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, **reorder ↑/↓**, **swap the map image** (keeps the floor's stairs/tokens/lights), **add** a floor from an image/video, and **remove** a floor (behind a confirm). An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility.
