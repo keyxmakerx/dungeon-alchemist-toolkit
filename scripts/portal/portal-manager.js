@@ -11,7 +11,10 @@ import {
   deletePortalLink,
   bindPortals,
   regionCenter,
-  regionLevelId
+  regionLevelId,
+  regionLevelIds,
+  adoptLegacyRegion,
+  LEGACY_LINK_PREFIX
 } from "./portal-core.js";
 import { addStairsInteractive } from "./portal-wizard.js";
 import { getSceneLevels, viewLevel } from "../levels.js";
@@ -29,6 +32,7 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       goto: DAStairsManager.#onGoto,
       edit: DAStairsManager.#onEdit,
+      adopt: DAStairsManager.#onAdopt,
       remove: DAStairsManager.#onRemove,
       add: DAStairsManager.#onAdd,
       refresh: DAStairsManager.#onRefresh
@@ -50,15 +54,18 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const links = [];
     for (const [linkId, entries] of getPortalLinkGroups(scene)) {
       const first = entries[0]?.portal ?? {};
+      const legacy = entries[0]?.legacy ?? false;
+      // A legacy region is one Region that may span several floors; list each floor.
+      const soloMulti = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
+      const ends = soloMulti
+        ? regionLevelIds(entries[0].region).map((id) => ({ regionId: entries[0].region.id, role: "level", levelName: levelName(id) }))
+        : entries.map((e) => ({ regionId: e.region.id, role: e.portal?.role || "end", levelName: levelName(regionLevelId(e.region)) }));
       links.push({
         linkId,
         label: first.label || "Stairs",
         mode: first.mode || "stairs",
-        ends: entries.map((e) => ({
-          regionId: e.region.id,
-          role: e.portal?.role || "end",
-          levelName: levelName(regionLevelId(e.region))
-        }))
+        legacy,
+        ends
       });
     }
     // Stable order: by label then linkId.
@@ -94,6 +101,10 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const entrance = entries.find((e) => e.portal?.role === "entrance") ?? entries[0];
     const others = entries.filter((e) => e !== entrance);
     const regions = [entrance.region, ...others.map((e) => e.region)];
+
+    // A single-region group can't be re-linked (bindPortals needs two ends), so
+    // fall back to the region's native sheet instead of throwing on save.
+    if (regions.length < 2) { entrance.region.sheet?.render(true); return; }
 
     const cur = entrance.portal ?? {};
     const curMode = cur.mode || "stairs";
@@ -150,13 +161,29 @@ export class DAStairsManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Delete both ends of a link (with confirm). */
+  /** Adopt a legacy (unflagged) region as a managed portal, then re-render. */
+  static async #onAdopt(_event, target) {
+    const scene = canvas?.scene;
+    try {
+      await adoptLegacyRegion(scene, target?.dataset?.linkId);
+      ui.notifications.info(t("DAT.Stairs.Adopted"));
+    } catch (err) {
+      ui.notifications.error(t("DAT.Stairs.AdoptFailed", { error: err.message }));
+      console.error(err);
+    }
+    this.render();
+  }
+
+  /** Delete a link's ends — or a single legacy region — with confirm. */
   static async #onRemove(_event, target) {
     const linkId = target.dataset.linkId;
     const scene = canvas?.scene;
+    const isLegacy = typeof linkId === "string" && linkId.startsWith(LEGACY_LINK_PREFIX);
     const ok = await foundry.applications.api.DialogV2.confirm({
       window: { title: t("DAT.Stairs.DeleteTitle") },
-      content: "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
+      content: isLegacy
+        ? "<p>Delete this <strong>legacy region</strong> from the scene?</p>"
+        : "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
       rejectClose: false,
       modal: true
     }).catch(() => false);

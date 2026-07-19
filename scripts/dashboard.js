@@ -13,7 +13,7 @@
 import { MODULE_ID } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { getSceneLevels, getCurrentLevelId, viewLevel } from "./levels.js";
-import { getPortalLinkGroups, getScenePortals, deletePortalLink, bindPortals, regionCenter, regionLevelId } from "./portal/portal-core.js";
+import { getPortalLinkGroups, getScenePortals, deletePortalLink, bindPortals, regionCenter, regionLevelId, regionLevelIds, adoptLegacyRegion, LEGACY_LINK_PREFIX } from "./portal/portal-core.js";
 import { updateLevel, setStartLevel, moveLevel, openNativeLevels, replaceLevelImage, addLevel, removeLevel } from "./scene-levels-edit.js";
 import { buildThumb } from "./floor-rows.js";
 
@@ -49,6 +49,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       addStairs: DALevelManager.#onAddStairs,
       gotoStair: DALevelManager.#onGotoStair,
       editStair: DALevelManager.#onEditStair,
+      adoptStair: DALevelManager.#onAdoptStair,
       removeStair: DALevelManager.#onRemoveStair
     }
   };
@@ -97,17 +98,19 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     // Stairs/portals connecting the selected floor.
     const stairs = [];
     for (const [linkId, entries] of getPortalLinkGroups(scene)) {
-      const onThis = entries.some((e) => regionLevelId(e.region) === selectedId);
-      if (!onThis) continue;
+      const legacy = entries[0]?.legacy ?? false;
+      // A flagged portal is single-level (levels:[id]); a legacy region can span
+      // several floors, so use its full level set to place + label it.
+      const soloMulti = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
+      const lids = soloMulti ? regionLevelIds(entries[0].region) : entries.map((e) => regionLevelId(e.region));
+      if (!lids.includes(selectedId)) continue;
       const portal = entries[0]?.portal ?? {};
       const mode = portal.mode || "stairs";
-      const partners = entries
-        .map((e) => regionLevelId(e.region))
-        .filter((id) => id && id !== selectedId);
+      const partners = lids.filter((id) => id && id !== selectedId);
       const sub = partners.length
         ? `→ ${[...new Set(partners)].map(levelName).join(", ")}`
         : t("DAT.Dash.SameFloor");
-      stairs.push({ linkId, label: portal.label || "Stairs", mode, icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs, sub });
+      stairs.push({ linkId, label: portal.label || "Stairs", mode, icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs, sub, legacy });
     }
     stairs.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
 
@@ -115,15 +118,21 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const links = [];
     for (const [linkId, entries] of getPortalLinkGroups(scene)) {
       const first = entries[0]?.portal ?? {};
+      const legacy = entries[0]?.legacy ?? false;
       const mode = first.mode || "stairs";
-      const ends = entries.map((e) => ({ regionId: e.region.id, levelName: levelName(regionLevelId(e.region)) }));
+      const soloMulti = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
+      const ends = soloMulti
+        ? regionLevelIds(entries[0].region).map((id) => ({ regionId: entries[0].region.id, levelName: levelName(id) }))
+        : entries.map((e) => ({ regionId: e.region.id, levelName: levelName(regionLevelId(e.region)) }));
       links.push({
         linkId,
         label: first.label || "Stairs",
         mode,
         icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs,
-        ends: ends.map((x) => x.levelName).join(" ⟷ "),
-        gotoEnds: ends.map((x) => ({ regionId: x.regionId, tip: t("DAT.Dash.GotoEnd", { floor: x.levelName }) }))
+        legacy,
+        ends: ends.map((x) => x.levelName).join(legacy ? ", " : " ⟷ "),
+        // A solo region has one Region doc, so collapse its per-floor "goto" buttons to one.
+        gotoEnds: (soloMulti ? [ends[0]] : ends).map((x) => ({ regionId: x.regionId, tip: t("DAT.Dash.GotoEnd", { floor: x.levelName }) }))
       });
     }
     links.sort((a, b) => (a.label || "").localeCompare(b.label || "") || a.linkId.localeCompare(b.linkId));
@@ -329,6 +338,10 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const others = entries.filter((e) => e !== entrance);
     const regions = [entrance.region, ...others.map((e) => e.region)];
 
+    // A single-region group can't be re-linked (bindPortals needs two ends), so
+    // fall back to the region's native sheet instead of throwing on save.
+    if (regions.length < 2) { entrance.region.sheet?.render(true); return; }
+
     const cur = entrance.portal ?? {};
     const curMode = cur.mode || "stairs";
     const curLabel = cur.label || "Stairs";
@@ -383,13 +396,29 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Delete both ends of a link (with confirm). */
+  /** Adopt a legacy (unflagged) region as a managed portal, then re-render. */
+  static async #onAdoptStair(_event, target) {
+    const scene = canvas?.scene;
+    try {
+      await adoptLegacyRegion(scene, target?.dataset?.linkId);
+      ui.notifications?.info?.(t("DAT.Stairs.Adopted"));
+    } catch (err) {
+      ui.notifications?.error?.(t("DAT.Stairs.AdoptFailed", { error: err.message }));
+      console.error(err);
+    }
+    this.render();
+  }
+
+  /** Delete a link's ends — or a single legacy region — with confirm. */
   static async #onRemoveStair(_event, target) {
     const linkId = target?.dataset?.linkId;
     const scene = canvas?.scene;
+    const isLegacy = typeof linkId === "string" && linkId.startsWith(LEGACY_LINK_PREFIX);
     const ok = await foundry.applications.api.DialogV2.confirm({
       window: { title: t("DAT.Stairs.DeleteTitle") },
-      content: "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
+      content: isLegacy
+        ? "<p>Delete this <strong>legacy region</strong> from the scene?</p>"
+        : "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
       rejectClose: false,
       modal: true
     }).catch(() => false);

@@ -58,18 +58,76 @@ export function getPortalFlag(region) {
   return region.flags?.[MODULE_ID]?.[PORTAL_FLAG] ?? null;
 }
 
+/** Synthetic linkId prefix for a legacy (unflagged `changeLevel`) region. */
+export const LEGACY_LINK_PREFIX = "legacy:";
+
 /**
- * All portal regions on a scene, each with its parsed flag.
- * @param {Scene} scene
- * @returns {{region:RegionDocument, portal:object}[]}
+ * A Region's behaviors as a plain array, tolerant of the v14 shape
+ * (EmbeddedCollection with `.contents`/`.values()`, a Map-like, or an array).
+ * @param {RegionDocument} region
+ * @returns {object[]}
  */
-export function getScenePortals(scene) {
+export function getRegionBehaviors(region) {
+  const b = region?.behaviors;
+  if (!b) return [];
+  if (Array.isArray(b)) return b;
+  if (b.contents) return b.contents;
+  if (typeof b.values === "function") return Array.from(b.values());
+  return Array.from(b);
+}
+
+/**
+ * A "legacy" stair region: a Region that acts as a floor transit (has a
+ * `changeLevel` behavior) but carries no portal flag — the output of the old
+ * `createMultiLevelRegion`/`DA.AddRegion` tool. These render on the canvas but
+ * were invisible to the flag-based manager; we surface them so they can be
+ * adopted or removed.
+ * @param {RegionDocument} region
+ * @returns {boolean}
+ */
+export function isLegacyStairRegion(region) {
+  if (!region) return false;
+  if (getPortalFlag(region)) return false;               // a real portal, not legacy
+  return getRegionBehaviors(region).some((bh) => bh?.type === "changeLevel");
+}
+
+/**
+ * A portal-flag-shaped descriptor synthesized for a legacy region so the shared
+ * display paths can treat it as a single-end group. `legacy:true` lets consumers
+ * offer Adopt/Remove instead of the linked-pair Edit.
+ * @param {RegionDocument} region
+ * @returns {{linkId:string,label:string,mode:string,role:string,legacy:boolean}}
+ */
+export function makeLegacyPortalDescriptor(region) {
+  return {
+    linkId: LEGACY_LINK_PREFIX + (region.id ?? region._id),
+    label: region.name || "Stairs (legacy)",
+    mode: "stairs",
+    role: "legacy",
+    legacy: true
+  };
+}
+
+/**
+ * All portal regions on a scene, each with its parsed flag. With
+ * `includeLegacy`, also returns legacy `changeLevel` regions (no portal flag)
+ * carrying a synthesized descriptor — used by the read/display paths so a region
+ * that renders on the canvas is never invisible to the manager. Write paths call
+ * this bare (includeLegacy defaults false) so they only ever see real portals.
+ * @param {Scene} scene
+ * @param {{includeLegacy?:boolean}} [opts]
+ * @returns {{region:RegionDocument, portal:object, legacy?:boolean}[]}
+ */
+export function getScenePortals(scene, { includeLegacy = false } = {}) {
   const coll = scene?.regions;
   const regions = coll?.contents ?? Array.from(coll?.values?.() ?? coll ?? []);
   const out = [];
   for (const region of regions) {
     const portal = getPortalFlag(region);
-    if (portal) out.push({ region, portal });
+    if (portal) { out.push({ region, portal }); continue; }   // flagged wins → never double-counted
+    if (includeLegacy && isLegacyStairRegion(region)) {
+      out.push({ region, portal: makeLegacyPortalDescriptor(region), legacy: true });
+    }
   }
   return out;
 }
@@ -81,7 +139,10 @@ export function getScenePortals(scene) {
  */
 export function getPortalLinkGroups(scene) {
   const groups = new Map();
-  for (const entry of getScenePortals(scene)) {
+  // includeLegacy: surface legacy changeLevel regions too. Each gets a unique
+  // synthetic linkId, so it forms its own single-entry group and the existing
+  // display loops (dashboard, manager, overlay) render it unchanged.
+  for (const entry of getScenePortals(scene, { includeLegacy: true })) {
     const id = entry.portal?.linkId;
     if (!id) continue;
     if (!groups.has(id)) groups.set(id, []);
@@ -97,6 +158,22 @@ export function regionLevelId(region) {
   if (lv instanceof Set) return [...lv][0] ?? null;
   if (Array.isArray(lv)) return lv[0] ?? null;
   return [...(lv.values?.() ?? [])][0] ?? null;
+}
+
+/**
+ * Every level id a region is bound to. A flagged portal is always single-level
+ * (buildPortalRegionData emits `levels:[levelId]`), but a legacy multi-level
+ * region can span several floors — the solo-multi-level display paths use this
+ * so such a region is listed on every floor it touches.
+ * @param {RegionDocument} region
+ * @returns {string[]}
+ */
+export function regionLevelIds(region) {
+  const lv = region?.levels;
+  if (!lv) return [];
+  if (lv instanceof Set) return [...lv];
+  if (Array.isArray(lv)) return [...lv];
+  return [...(lv.values?.() ?? [])];
 }
 
 /**
@@ -335,8 +412,43 @@ export async function linkExistingRegions({ regionA, regionB, mode = "stairs", l
  */
 export async function deletePortalLink(scene, linkId) {
   if (!requireGM()) return;
+  // A legacy region is a single Region keyed by a synthetic "legacy:<id>" linkId
+  // (kept after the GM gate so a non-GM can't drive the delete).
+  if (typeof linkId === "string" && linkId.startsWith(LEGACY_LINK_PREFIX)) {
+    const rid = linkId.slice(LEGACY_LINK_PREFIX.length);
+    if (scene?.regions?.get?.(rid)) await scene.deleteEmbeddedDocuments("Region", [rid]);
+    return;
+  }
   const ids = getScenePortals(scene)
     .filter((e) => e.portal?.linkId === linkId)
     .map((e) => e.region.id);
   if (ids.length) await scene.deleteEmbeddedDocuments("Region", ids);
+}
+
+/**
+ * Adopt a legacy `changeLevel` region as a managed portal by stamping it with a
+ * real portal flag (idempotent — a region that already has a flag is left as-is).
+ * The region's `changeLevel` behavior is deliberately kept, so runtime transit
+ * keeps working; only the manager's view of it changes.
+ * @param {Scene} scene
+ * @param {string} linkId  A "legacy:<regionId>" synthetic id, or a bare region id.
+ * @returns {Promise<string|null>}  The portal linkId now on the region.
+ */
+export async function adoptLegacyRegion(scene, linkId) {
+  if (!requireGM()) return null;
+  const rid = (typeof linkId === "string" && linkId.startsWith(LEGACY_LINK_PREFIX))
+    ? linkId.slice(LEGACY_LINK_PREFIX.length)
+    : linkId;
+  const region = scene?.regions?.get?.(rid);
+  if (!region) throw new Error("Legacy region not found.");
+  const existing = getPortalFlag(region);
+  if (existing) return existing.linkId ?? null;
+  const newLinkId = foundry.utils.randomID();
+  await region.setFlag(MODULE_ID, PORTAL_FLAG, {
+    linkId: newLinkId,
+    label: region.name || "Stairs",
+    mode: "stairs",
+    role: "entrance"
+  });
+  return newLinkId;
 }

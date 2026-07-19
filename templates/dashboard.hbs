@@ -84,13 +84,18 @@
         <div class="da-link-text">
           <span class="da-dash-stair-label">{{this.label}}</span>
           <span class="da-stairs-mode da-stairs-mode--{{this.mode}}">{{this.mode}}</span>
+          {{#if this.legacy}}<span class="da-stairs-mode da-stairs-mode--legacy">{{localize "DAT.Dash.LegacyBadge"}}</span>{{/if}}
           <div class="da-dash-stair-sub">{{this.ends}}</div>
         </div>
         <div class="da-link-actions">
           {{#each this.gotoEnds}}
           <button type="button" class="da-link-btn" data-action="gotoStair" data-region-id="{{this.regionId}}" data-tooltip="{{this.tip}}"><i class="fa-solid fa-location-crosshairs"></i></button>
           {{/each}}
+          {{#if this.legacy}}
+          <button type="button" class="da-link-btn" data-action="adoptStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AdoptStair"}}"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+          {{else}}
           <button type="button" class="da-link-btn" data-action="editStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.EditStair"}}"><i class="fa-solid fa-pen"></i></button>
+          {{/if}}
           <button type="button" class="da-link-btn da-link-btn--danger" data-action="removeStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.RemoveStair"}}"><i class="fa-solid fa-trash"></i></button>
         </div>
       </div>
