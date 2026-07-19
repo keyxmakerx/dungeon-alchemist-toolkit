@@ -142,10 +142,16 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
     try {
       const res = await fetch(p.json);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // A truncated/corrupt file can still parse to valid JSON that isn't a DA
+      // floor object (the literal `null`, a bare array/number). Treat that as a
+      // dropped floor here so the downstream `data.walls`/`data.width` accesses
+      // never dereference a non-object and abort the whole import.
+      if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("floor JSON is not a DA floor object");
       // Carry this floor's positional override + initial-level flag ON the floor
       // object so they stay bound to the RIGHT floor even when a floor below is
       // dropped (filtering would otherwise shift the positional indices).
-      return { ...p, data: await res.json(), _ov: levelOverrides[origIndex] ?? null, _initial: origIndex === initialLevelIndex };
+      return { ...p, data, _ov: levelOverrides[origIndex] ?? null, _initial: origIndex === initialLevelIndex };
     } catch (err) {
       console.warn(`[DA Importer] skipping floor "${p.stem}" — ${p.json}: ${err.message}`);
       return null;
