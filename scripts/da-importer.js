@@ -17,56 +17,13 @@
 
 import { FLOOR_HEIGHT } from "./constants.js";
 import { requireGM, t } from "./util.js";
+import { collectFloorPairs, distinctMapStems, mapName, isVideoPath, toKebab } from "./floor-grouping.js";
 
-const FLOOR_RE = /-_(\d+)$/;
-
-/**
- * Background media accepted alongside each floor's `.json`. Foundry can use any
- * of these as a Scene Level `background.src`; the VIDEO_EXTS render as animated
- * textures, the IMAGE_EXTS as static backgrounds.
- */
-const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp"];
-const VIDEO_EXTS = ["webm", "mp4", "m4v"];
-const MEDIA_EXTS = [...IMAGE_EXTS, ...VIDEO_EXTS];
-
-/**
- * Preference order when a single floor ships more than one media file (e.g. a
- * `.jpg` and a `.webp`, or a still image alongside an animated video). Earlier =
- * preferred: animated video wins outright, then the most efficient still formats.
- */
-const MEDIA_PRIORITY = ["webm", "mp4", "m4v", "webp", "png", "jpeg", "jpg"];
-
-/**
- * Whether a path points to a video Foundry renders as an animated texture
- * (rather than a static image). Lets the dialog choose a <video> over an <img>
- * for a floor's thumbnail.
- *
- * @param {string} path  File path or URL (trailing query/hash tolerated).
- * @returns {boolean}
- */
-export function isVideoPath(path) {
-  const clean = String(path).split(/[?#]/)[0];
-  const dot = clean.lastIndexOf(".");
-  const ext = dot >= 0 ? clean.slice(dot + 1).toLowerCase() : "";
-  return VIDEO_EXTS.includes(ext);
-}
-
-/**
- * Convert an arbitrary filename stem to strict kebab-case.
- * Replaces accented/special characters with ASCII equivalents,
- * then collapses any non-alphanumeric run into a single hyphen.
- *
- * @param {string} name  Raw filename stem (no extension).
- * @returns {string}     Normalized kebab-case stem.
- */
-function _toKebab(name) {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-}
+// The folder→floor grouping is pure and lives in floor-grouping.js (unit-tested
+// in test/floor-grouping.test.mjs). Re-export the pieces other modules import
+// from here so their imports are unchanged (floor-rows.js → isVideoPath,
+// importer-dialog.js → collectFloorPairs).
+export { isVideoPath, collectFloorPairs, distinctMapStems };
 
 /**
  * Ensure a unique subdirectory exists under `worlds/<worldId>/da-imported/`.
@@ -142,45 +99,71 @@ async function _copyMedia(srcUrl, destFolder, kebabStem, ext) {
  *   Per-floor overrides for name, elevation, and roof behavior.
  * @returns {Promise<Scene|null>}                        The created Scene, or null on abort.
  */
-export async function importFolder({ source, path, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
+export async function importFolder({ source, path, pairs = null, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
   if (!requireGM(t("DAT.Importer.GMOnly"))) return null;
   const FilePicker = foundry.applications.apps.FilePicker.implementation;
 
-  let listing;
-  try {
-    listing = await FilePicker.browse(source, path);
-  } catch (err) {
-    ui.notifications.error(t("DAT.Importer.BrowseFailed", { path, error: err.message }));
-    return null;
+  // A folder is one map. The caller (importer dialog) may pass its own
+  // already-detected, already-reordered `pairs` so the scene honors the user's
+  // floor order and per-floor edits. Only browse the folder ourselves when no
+  // pairs were supplied (standalone / API use).
+  if (!Array.isArray(pairs) || !pairs.length) {
+    let listing;
+    try {
+      listing = await FilePicker.browse(source, path);
+    } catch (err) {
+      ui.notifications.error(t("DAT.Importer.BrowseFailed", { path, error: err.message }));
+      return null;
+    }
+    pairs = collectFloorPairs(listing.files);
+    if (pairs.orphans?.length) {
+      ui.notifications.warn(t("DAT.Importer.Orphans", { count: pairs.orphans.length }));
+    }
   }
-
-  const pairs = collectFloorPairs(listing.files);
   console.log(`[DA Importer] found ${pairs.length} floor pair(s):`, pairs.map((p) => p.stem));
   if (pairs.length === 0) {
     ui.notifications.warn(t("DAT.Importer.NoPairs"));
     return null;
   }
-  if (pairs.orphans?.length) {
-    ui.notifications.warn(t("DAT.Importer.Orphans", { count: pairs.orphans.length }));
-  }
 
-  // Heuristic: a folder should hold a single map. If the stems resolve to more
-  // than one base-name, warn (but proceed) — floors from different maps would
-  // otherwise be silently merged into one scene.
+  // A folder is contractually one map, so every pair becomes a floor of one
+  // scene. Warn (but still proceed) ONLY on the genuine "two DA maps dumped in
+  // one folder" signature: 2+ distinct base-names that each carry the canonical
+  // "-_NN" suffix. Custom per-floor names or alt numbering never trip this.
   const mapStems = distinctMapStems(pairs);
   if (mapStems.length > 1) {
     ui.notifications.warn(t("DAT.Importer.MixedMaps", { count: mapStems.length, maps: mapStems.join(", ") }));
   }
 
-  let floors;
-  try {
-    floors = await Promise.all(pairs.map(async (p) => {
+  // Fetch each floor's JSON independently: one corrupt/truncated JSON drops just
+  // that floor (with a warning) instead of aborting the whole import and losing
+  // every good floor — mirroring the per-entry resilience used for walls/lights.
+  const settled = await Promise.all(pairs.map(async (p, origIndex) => {
+    try {
       const res = await fetch(p.json);
-      if (!res.ok) throw new Error(`${p.json}: HTTP ${res.status}`);
-      return { ...p, data: await res.json() };
-    }));
-  } catch (err) {
-    ui.notifications.error(t("DAT.Importer.JsonFailed", { error: err.message }));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // A truncated/corrupt file can still parse to valid JSON that isn't a DA
+      // floor object (the literal `null`, a bare array/number). Treat that as a
+      // dropped floor here so the downstream `data.walls`/`data.width` accesses
+      // never dereference a non-object and abort the whole import.
+      if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("floor JSON is not a DA floor object");
+      // Carry this floor's positional override + initial-level flag ON the floor
+      // object so they stay bound to the RIGHT floor even when a floor below is
+      // dropped (filtering would otherwise shift the positional indices).
+      return { ...p, data, _ov: levelOverrides[origIndex] ?? null, _initial: origIndex === initialLevelIndex };
+    } catch (err) {
+      console.warn(`[DA Importer] skipping floor "${p.stem}" — ${p.json}: ${err.message}`);
+      return null;
+    }
+  }));
+  const floors = settled.filter(Boolean);
+  const droppedFloors = settled.length - floors.length;
+  if (droppedFloors > 0) {
+    ui.notifications.warn(t("DAT.Importer.FloorsDropped", { count: droppedFloors }));
+  }
+  if (floors.length === 0) {
+    ui.notifications.error(t("DAT.Importer.JsonFailed", { error: t("DAT.Importer.AllFloorsFailed") }));
     return null;
   }
 
@@ -190,8 +173,8 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   // into worlds/<id>/da-imported/<map>/ and renamed to kebab-case, so the world
   // becomes self-contained and portable.
   if (copyImages) {
-    const rawStem = _commonStem(pairs);
-    const kebabBase = _toKebab(rawStem || "da-map");
+    const rawStem = mapName(floors, path);
+    const kebabBase = toKebab(rawStem || "da-map");
     let destFolder;
     try {
       destFolder = await _ensureUniqueSubfolder(kebabBase);
@@ -206,31 +189,39 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
       const origFilename = decodeURIComponent(originalUrl.split("/").pop());
       const dotIdx = origFilename.lastIndexOf(".");
       const ext = dotIdx >= 0 ? origFilename.slice(dotIdx + 1).toLowerCase() : "jpg";
-      const kebabFilename = _toKebab(f.stem);
+      const kebabFilename = toKebab(f.stem);
       try {
-        // floors[i] is a shallow copy of pairs[i] (see the Promise.all above),
+        // floors[i] is a shallow copy of pairs[i] (see the per-floor fetch above),
         // so we mutate floors[i].media directly — that is the reference used
         // when building levels[] below.
         f.media = await _copyMedia(originalUrl, destFolder, kebabFilename, ext);
       } catch (err) {
-        ui.notifications.error(t("DAT.Importer.CopyFailed", { name: origFilename, error: err.message }));
-        return null;
+        // Warn and keep this floor pointing at its original media URL rather than
+        // aborting the whole import (which would lose every floor, including the
+        // ones already copied). The scene is still created; just not fully
+        // self-contained for this one floor.
+        console.warn(`[DA Importer] copy failed for "${origFilename}": ${err.message}`);
+        ui.notifications.warn(t("DAT.Importer.CopyFailed", { name: origFilename, error: err.message }));
       }
     }
     console.log(`[DA Importer] media copied to "${destFolder}"`);
   }
   // ────────────────────────────────────────────────────────────────────────────
 
-  const first = floors[0].data;
-  const stem = _commonStem(pairs);
+  // Scene name comes from the folder / shared filename base (a folder is one map),
+  // not from whichever floor happens to sort first.
+  const stem = mapName(floors, path);
 
-  // Validate the map-wide scalars from the (untrusted) first-floor DA JSON. Walls
-  // and lights are already guarded per-entry; these scene-level values would
-  // otherwise fail Scene.create with a cryptic error and lose the whole import.
+  // Pick the floor that defines the scene-wide scalars: the first whose
+  // width/height/grid are all valid. DA exports identical dimensions per floor,
+  // but sourcing from floor 0 alone would abort the whole import if only floor 0
+  // is malformed — so fall back to any floor with valid dimensions.
+  const dimsOk = (d) => [d?.width, d?.height, d?.grid].every((v) => Number.isFinite(v) && v > 0);
+  const first = floors.find((f) => dimsOk(f.data))?.data ?? floors[0].data;
   const sceneWidth = first.width;
   const sceneHeight = first.height;
   const sceneGrid = first.grid;
-  if (![sceneWidth, sceneHeight, sceneGrid].every((v) => Number.isFinite(v) && v > 0)) {
+  if (!dimsOk(first)) {
     ui.notifications.error(t("DAT.Importer.BadDimensions", { width: sceneWidth, height: sceneHeight, grid: sceneGrid }));
     return null;
   }
@@ -239,7 +230,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   const sceneGridColor = /^#[0-9a-f]{6}$/i.test(first.gridColor) ? first.gridColor : "#000000";
 
   const levels = floors.map((f, i) => {
-    const ov = levelOverrides[i];
+    const ov = f._ov;
     const name = ov?.name?.trim() || `Floor ${i}`;
     const defaultBottom = i === 0 ? 0 : i * FLOOR_HEIGHT + 1;
     const defaultTop = (i + 1) * FLOOR_HEIGHT;
@@ -271,7 +262,7 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   // level immediately below it. Finer cross-level visibility is set natively via
   // the v14 Levels tab in Scene Config after import.
   levels.forEach((level, i) => {
-    const ov = levelOverrides[i];
+    const ov = floors[i]._ov;
     const visIds = [];
     if (i > 0 && ov?.isRoof) visIds.push(levels[i - 1]._id);
     level.visibility.levels = visIds;
@@ -331,7 +322,10 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
       dark: { hue: 0, intensity: 0, luminosity: -0.25, saturation: 0, shadows: 0 }
     },
     levels,
-    initialLevel: (levels[initialLevelIndex] ?? levels[0])._id,
+    // floors[i] ↔ levels[i], so the initial floor's index in floors is its index
+    // in levels. Using the carried _initial flag keeps it correct even if a floor
+    // was dropped (a stale positional initialLevelIndex would point elsewhere).
+    initialLevel: (levels[floors.findIndex((f) => f._initial)] ?? levels[0])._id,
     walls,
     lights
   };
@@ -357,90 +351,6 @@ export async function importFolder({ source, path, backgroundColor = "#000000", 
   console.log(`[DA Importer] scene created: ${createdLevels} levels, ${createdWalls} walls, ${createdLights} lights`);
   ui.notifications.info(t("DAT.Importer.Created", { name: scene.name, levels: createdLevels, walls: createdWalls, lights: createdLights }));
   return scene;
-}
-
-/**
- * Pair `.json` files with sibling image/video files and sort by the `-_NN` suffix.
- * Exported so the importer dialog can inspect the pairs before the full import.
- *
- * @param {string[]} files  Full URLs returned by FilePicker.browse().
- * @returns {{stem:string, index:number, json:string, media:string}[]}
- */
-export function collectFloorPairs(files) {
-  const byStem = new Map();
-  for (const f of files) {
-    const base = decodeURIComponent(f.split("/").pop());
-    const dot = base.lastIndexOf(".");
-    if (dot < 0) continue;
-    const stem = base.slice(0, dot);
-    const ext = base.slice(dot + 1).toLowerCase();
-    if (ext !== "json" && !MEDIA_EXTS.includes(ext)) continue;
-    if (!byStem.has(stem)) byStem.set(stem, {});
-    const entry = byStem.get(stem);
-    if (ext === "json") {
-      entry.json = f;
-    } else {
-      // One media file per floor. When several are present, keep the
-      // highest-priority extension (lower MEDIA_PRIORITY index) so the choice is
-      // deterministic regardless of the order FilePicker returns files in.
-      const rank = MEDIA_PRIORITY.indexOf(ext);
-      const curRank = entry.imgExt ? MEDIA_PRIORITY.indexOf(entry.imgExt) : Infinity;
-      if (rank < curRank) {
-        entry.img = f;
-        entry.imgExt = ext;
-      }
-    }
-  }
-
-  const pairs = [];
-  const orphans = [];
-  for (const [stem, entry] of byStem) {
-    if (!entry.json || !entry.img) {
-      orphans.push(`${stem} — ${entry.json ? "JSON with no image/video" : "image/video with no JSON"}`);
-      continue;
-    }
-    const m = stem.match(FLOOR_RE);
-    pairs.push({
-      stem,
-      index: m ? parseInt(m[1], 10) : 0,
-      json: entry.json,
-      media: entry.img
-    });
-  }
-  if (orphans.length) {
-    console.warn(`[DA Importer] skipped ${orphans.length} unpaired file(s):`, orphans);
-  }
-  pairs.sort((a, b) => a.index - b.index || a.stem.localeCompare(b.stem));
-  // Carry the orphan list so importFolder can surface it to the GM (the dialog
-  // ignores this property).
-  pairs.orphans = orphans;
-  return pairs;
-}
-
-/**
- * Compute the map name by stripping the `-_NN` suffix shared by all floors.
- *
- * @param {{stem:string}[]} pairs
- * @returns {string}
- */
-function _commonStem(pairs) {
-  const stems = pairs.map((p) => p.stem.replace(FLOOR_RE, ""));
-  return stems[0];
-}
-
-/**
- * Distinct map base-names across a set of pairs: each stem has its `-_NN` suffix
- * stripped and is kebab-normalized (so case/accents don't create false
- * positives, and floors with no numeric suffix are still compared). More than
- * one entry means the folder likely mixes multiple maps, which the importer is
- * not designed for — it pairs every media with a sibling JSON and names the
- * scene from the first stem.
- *
- * @param {{stem:string}[]} pairs
- * @returns {string[]} Unique normalized base-names (may be empty).
- */
-export function distinctMapStems(pairs) {
-  return [...new Set(pairs.map((p) => _toKebab(p.stem.replace(FLOOR_RE, ""))))];
 }
 
 /**

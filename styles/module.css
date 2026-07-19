@@ -63,6 +63,42 @@
 #da-importer .da-import-adv[open] > summary { border-bottom: 1px solid var(--color-border-light-primary, #555); }
 #da-importer .da-import-adv-body { padding: 0.6rem 0.7rem; }
 
+/* In-window folder browser (P3+) — navigate folders and auto-detect floors. */
+#da-importer .da-browse { display: flex; flex-direction: column; gap: 0.4rem; }
+#da-importer .da-browse-bar { display: flex; align-items: center; gap: 0.4rem; }
+#da-importer .da-browse-src {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: var(--font-size-12, 12px); color: var(--color-text-light-6, #aaa); white-space: nowrap;
+}
+#da-importer .da-browse-src select { flex: 0 0 auto; }
+#da-importer .da-browse-up,
+#da-importer .da-browse-syspick {
+  flex: 0 0 auto; width: 28px; height: 28px; line-height: 1; cursor: pointer;
+  background: rgba(0, 0, 0, 0.18); border: 1px solid var(--color-border-light-primary, #555);
+  border-radius: 5px; color: var(--color-text-light-1, #e8e8f0);
+}
+#da-importer .da-browse-up:disabled { opacity: 0.35; cursor: default; }
+#da-importer .da-browse-path {
+  font-family: var(--font-mono, monospace); font-size: var(--font-size-12, 12px);
+  color: #cfd8e8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;
+}
+#da-importer .da-browse-dirs {
+  display: flex; flex-direction: column; max-height: 150px; overflow-y: auto;
+  border: 1px solid var(--color-border-light-primary, #555); border-radius: 6px;
+  padding: 0.25rem; background: rgba(0, 0, 0, 0.15);
+}
+#da-importer .da-browse-dir {
+  display: flex; align-items: center; gap: 0.5rem; text-align: left; width: 100%;
+  background: none; border: none; color: var(--color-text-light-1, #e8e8f0); cursor: pointer;
+  padding: 0.35rem 0.4rem; border-radius: 4px; font-size: var(--font-size-13, 13px);
+}
+#da-importer .da-browse-dir:hover { background: rgba(255, 255, 255, 0.06); }
+#da-importer .da-browse-dir i { color: #f5c060; flex: 0 0 auto; }
+#da-importer .da-browse-empty { margin: 0.3rem 0.2rem; }
+#da-importer .da-browse-status { margin: 0.1rem 0; font-size: var(--font-size-12, 12px); color: var(--color-text-light-6, #aaa); }
+#da-importer .da-browse-status--found { color: #8fd16b; font-weight: 600; }
+#da-importer .sheet-footer button:disabled { opacity: 0.5; cursor: default; }
+
 #da-importer .form-fields {
   display: flex;
   gap: 0.5rem;
@@ -709,7 +745,13 @@ body.da-region-picking canvas {
 /* Floor editor (P2) — selected-floor name/elevation/start/reorder controls. */
 .da-floor-edit { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.7rem; }
 .da-edit-row { display: flex; align-items: center; gap: 0.4rem; }
-.da-edit-name { flex: 1; font-size: 15px; font-weight: 600; }
+.da-edit-name {
+  flex: 1; font-size: 18px; font-weight: 700; color: var(--color-text-light-0, #fff);
+  background: transparent; border: none; border-bottom: 1px dashed transparent; padding: 2px 2px;
+}
+.da-edit-name:hover, .da-edit-name:focus {
+  border-bottom-color: var(--color-border-light-primary, #4a4a6a); outline: none;
+}
 .da-edit-star {
   flex: 0 0 auto; width: 30px; height: 30px; line-height: 1; font-size: 16px; cursor: pointer;
   background: rgba(0, 0, 0, 0.18); border: 1px solid var(--color-border-light-primary, #555);
@@ -733,3 +775,63 @@ body.da-region-picking canvas {
   width: auto; flex: 0 0 auto; background: none; border: none; cursor: pointer; padding: 0;
   color: var(--color-text-hyperlink, #88c0ff); font-size: 12px; text-decoration: underline;
 }
+.da-edit-danger {
+  width: auto; flex: 0 0 auto; cursor: pointer; border-radius: 5px; padding: 6px 10px; font-size: 13px;
+  background: rgba(204, 70, 40, 0.12); border: 1px solid #6b2e22; color: #e98b74;
+}
+.da-edit-danger:hover { background: rgba(204, 70, 40, 0.2); }
+.da-floor-add {
+  width: 100%; margin-top: 0.2rem; cursor: pointer; border-radius: 7px; padding: 8px; font-size: 13px;
+  background: rgba(91, 156, 240, 0.1); border: 1px dashed var(--color-level-1, #3a5aa0); color: #9ec5ff;
+}
+.da-floor-add:hover { background: rgba(91, 156, 240, 0.18); }
+
+/* GM canvas hover/select info-card for a stair/portal/trap. */
+.da-portal-card {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 10000;
+  pointer-events: none;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--color-cool-5, #1a1a2e);
+  border: 1px solid var(--color-border-light-primary, #4a5266);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  color: var(--color-text-light-1, #e8e8f0);
+  font-family: "Signika", sans-serif;
+  max-width: 240px;
+}
+.da-portal-card-title { font-weight: 700; font-size: 13px; }
+.da-portal-card-sub { font-size: 11px; color: var(--color-text-light-6, #aab); margin-top: 1px; text-transform: capitalize; }
+
+/* Dashboard tabs (Floors / Import / Stairs) */
+#da-level-manager .da-dash-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-border-light-primary, #3a3a52); margin-bottom: 0.6rem; }
+#da-level-manager .da-dash-tab {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer;
+  padding: 0.5rem 0.9rem; font-size: 13px; font-weight: 600; color: var(--color-text-light-6, #8a8aa0);
+}
+#da-level-manager .da-dash-tab:hover { color: var(--color-text-light-1, #ccc); }
+#da-level-manager .da-dash-tab.active { color: #fff; border-bottom-color: var(--color-level-1, #5b9cf0); }
+
+/* Stairs tab — one row per link with goto/edit/delete */
+#da-level-manager .da-dash-panel { padding: 0.2rem 0 0.4rem; }
+#da-level-manager .da-dash-stairs-hd { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+#da-level-manager .da-link-row {
+  display: grid; grid-template-columns: 22px 1fr auto; gap: 0.6rem; align-items: center;
+  padding: 0.45rem 0.5rem; border: 1px solid var(--color-border-light-primary, #3a3a52);
+  border-radius: 7px; margin-bottom: 0.4rem; background: rgba(0, 0, 0, 0.18);
+}
+#da-level-manager .da-link-actions { display: flex; gap: 0.25rem; align-items: center; }
+#da-level-manager .da-link-btn {
+  width: 28px; height: 28px; flex: 0 0 auto; cursor: pointer; border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18); border: 1px solid var(--color-border-light-primary, #3a3a52);
+  color: var(--color-text-light-1, #e8e8f0);
+}
+#da-level-manager .da-link-btn:hover { background: rgba(255, 255, 255, 0.06); }
+#da-level-manager .da-link-btn--danger { color: #e98b74; border-color: #6b2e22; }
+
+/* Import tab (interim launcher until the browser folds in) */
+#da-level-manager .da-dash-import-tab { padding: 0.4rem 0; }
+#da-level-manager .da-dash-import-intro { font-size: 14px; color: var(--color-text-light-1, #e8e8f0); margin: 0 0 0.6rem; }
+#da-level-manager .da-dash-import-go { width: auto; }

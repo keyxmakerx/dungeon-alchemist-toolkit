@@ -56,7 +56,7 @@ function levelToObject(level) {
  * @returns {Promise<boolean>}   true if the write was applied (verification only warns).
  */
 async function writeAndVerify(scene, nextLevels, context) {
-  const beforeIds = new Set(getSceneLevels(scene).map((l) => l._id));
+  const sentIds = new Set(nextLevels.map((l) => l._id));
   try {
     await scene.update({ levels: nextLevels });
   } catch (err) {
@@ -64,14 +64,17 @@ async function writeAndVerify(scene, nextLevels, context) {
     ui.notifications?.error?.(`Floor update failed: ${err.message}`);
     return false;
   }
-  // Read-back verification: the floor count and every id must survive the write.
+  // Read-back verification: the result must match exactly the floors we sent (count
+  // + ids). Comparing against the SENT set (not the prior set) means add/remove are
+  // validated correctly too — a dropped, duplicated, or renamed id surfaces a warning
+  // instead of silently corrupting the scene.
   const after = getSceneLevels(scene);
   const afterIds = new Set(after.map((l) => l._id));
   if (after.length !== nextLevels.length) {
     console.debug(`[DA Toolkit] level count drift after ${context}: sent ${nextLevels.length}, got ${after.length}`, { after });
     ui.notifications?.warn?.("Floor update may not have applied cleanly — check the Levels tab.");
   } else {
-    const missing = [...beforeIds].filter((id) => !afterIds.has(id));
+    const missing = [...sentIds].filter((id) => !afterIds.has(id));
     if (missing.length) {
       console.debug(`[DA Toolkit] level id drift after ${context}: missing ${missing.join(", ")}`, { after });
       ui.notifications?.warn?.("A floor's id changed during the update — check that stairs still connect.");
@@ -165,6 +168,86 @@ export function setStartLevel(scene, levelId) {
       ui.notifications?.error?.(`Couldn't set the start floor: ${err.message}`);
       return false;
     }
+  });
+}
+
+/**
+ * Swap a single floor's background map image/video. Other fields (elevation, name,
+ * visibility) and the level `_id` are preserved — so the floor's stairs, tokens, and
+ * lights stay put; only the artwork changes. Ideal for re-exporting one floor from
+ * Dungeon Alchemist without rebuilding the scene.
+ *
+ * @param {Scene} scene
+ * @param {string} levelId
+ * @param {string} src   New media path.
+ * @returns {Promise<boolean>}
+ */
+export function replaceLevelImage(scene, levelId, src) {
+  return enqueue(async () => {
+    if (!scene || !levelId || !src) return false;
+    const levels = getSceneLevels(scene).map(levelToObject);
+    const target = levels.find((l) => l._id === levelId);
+    if (!target) return false;
+    target.background = { ...(target.background ?? {}), src };
+    return writeAndVerify(scene, levels, `replaceLevelImage ${levelId}`);
+  });
+}
+
+/**
+ * Append a new floor above the current top floor, stacked one unit higher with the
+ * given height. Inherits the top floor's background color so it matches its siblings.
+ *
+ * @param {Scene} scene
+ * @param {{name?:string, src?:string, height?:number}} [opts]
+ * @returns {Promise<string|false>}  The new level's `_id`, or false on failure.
+ */
+export function addLevel(scene, { name, src, height = 10 } = {}) {
+  return enqueue(async () => {
+    if (!scene) return false;
+    const levels = getSceneLevels(scene).map(levelToObject);   // bottom-first
+    const sample = levels[levels.length - 1];
+    const prevTop = sample?.elevation?.top ?? 0;
+    const bottom = levels.length ? prevTop + 1 : 0;
+    const h = Number.isFinite(height) && height >= 1 ? height : 10;
+    const newLevel = {
+      _id: foundry.utils.randomID(),
+      name: name?.trim() || `Floor ${levels.length}`,
+      elevation: { bottom, top: bottom + h },
+      background: { src: src || null, color: sample?.background?.color ?? null, tint: "#ffffff", alphaThreshold: 0.75 },
+      foreground: { src: null, tint: "#ffffff", alphaThreshold: 0.75 },
+      fog: { src: null, tint: "#ffffff" },
+      textures: { anchorX: 0.5, anchorY: 0.5, fit: "fill", scaleX: 1, scaleY: 1 },
+      visibility: { levels: [] },
+      sort: levels.length,
+      flags: {}
+    };
+    levels.push(newLevel);
+    const ok = await writeAndVerify(scene, levels, "addLevel");
+    return ok ? newLevel._id : false;
+  });
+}
+
+/**
+ * Remove a floor from the scene. Refuses to remove the last remaining floor. Note
+ * this only drops the level entry (its background image); tokens/lights/walls/regions
+ * the GM placed on that floor remain in the scene and may need manual cleanup — the
+ * dashboard warns about this before calling.
+ *
+ * @param {Scene} scene
+ * @param {string} levelId
+ * @returns {Promise<boolean>}
+ */
+export function removeLevel(scene, levelId) {
+  return enqueue(async () => {
+    if (!scene || !levelId) return false;
+    const levels = getSceneLevels(scene).map(levelToObject);
+    if (levels.length <= 1) {
+      ui.notifications?.warn?.("A scene must keep at least one floor.");
+      return false;
+    }
+    const next = levels.filter((l) => l._id !== levelId);
+    if (next.length === levels.length) return false;   // id not found
+    return writeAndVerify(scene, next, `removeLevel ${levelId}`);
   });
 }
 

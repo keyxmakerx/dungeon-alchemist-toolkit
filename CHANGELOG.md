@@ -1,19 +1,44 @@
-# 0.4.0
+# 0.5.0
 
-**Dashboard editing + preview-first import** (redesign Concept A, P2–P3). The Level
-Manager is now a real editor, and importing opens straight to your floors. Canvas
-stair visualization and inline stairs management follow in 0.5.0.
+**The Level Manager becomes a full manager** (redesign Concept A), plus a robust
+rewrite of folder import. The dashboard now fully manages a scene's floors, imports
+straight to your floors via an in-window folder browser, and visualizes every
+stair/portal/trap on the canvas — and importing a folder now reliably produces **one
+scene with one level per floor**, whatever your files are named.
+
+> Supersedes the interim 0.4.0 (only ever offered on a non-default branch). Foundry
+> caches manifests by version, so the manager/importer work ships here as 0.5.0.
+
+## [Fixed]
+- **Importing a folder now always makes ONE scene with one level per floor.** The old
+  grouping only recognized Dungeon Alchemist's exact `-_NN` suffix, so any other floor
+  naming (custom per-floor names, `Map_0`, `Map - 0`, …) tripped a false *"this folder
+  contains N maps"* warning and mis-ordered the floors (e.g. `_10` before `_2`).
+  Grouping is now **folder-first**: every image+JSON pair is a floor of the one map,
+  floors sort by any trailing number (numeric — stable order when unnumbered), the
+  scene is named from the folder / shared filename, and the multi-map warning fires
+  only on the genuine case (two or more distinct `-_NN` map families in one folder).
+  Extracted to `scripts/floor-grouping.js` with unit tests (`node
+  test/floor-grouping.test.mjs`).
+- **Drag-reordering floors and per-floor edits now land on the right floor.** The
+  import previously re-scanned the folder and re-sorted independently of the dialog,
+  silently discarding any drag-reorder and applying names/elevations/start-floor to
+  the wrong floors. The dialog's exact order is now honored end to end.
+- **A single bad floor no longer loses the whole import.** Each floor's `.json` loads
+  independently (a corrupt one is skipped with a warning), scene dimensions fall back
+  to any floor with valid data, and a failed image copy keeps that floor on its
+  original path instead of aborting the whole import.
 
 ## [Added]
-- **Inline floor editing in the Level Manager.** Select a floor and edit it on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, and **reorder ↑/↓**. An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility and floor deletion.
-- **Unpaired-file warning on import.** A folder with an image that has no JSON (or vice-versa) now shows an inline warning listing what was skipped, instead of silently importing fewer floors.
-
-## [Changed]
-- **Import is preview-first.** Picking a folder now opens straight to the detected **floors** (thumbnails / names / count) — previously they were buried behind the third tab, so you'd "pick a folder and hope". Scene background/grid/door options moved into a collapsible **Scene & door options** section.
+- **Full floor management in the Level Manager.** Select a floor and, on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, **reorder ↑/↓**, **swap the map image** (keeps the floor's stairs/tokens/lights), **add** a floor from an image/video, and **remove** a floor (behind a confirm). An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility.
+- **In-window import folder browser.** Instead of an OS dialog + "pick a folder and hope", **browse folders inside the window** (source switch, Up, clickable subfolders); the moment you open a folder with Dungeon Alchemist floors they're **auto-detected and offered** ("Import 5 floors"), with thumbnails / names / count previewed inline. Scene/grid/door options collapse into a **Scene & door options** section; the system picker remains as a one-click shortcut.
+- **On-canvas stair/portal/trap visualization (GM).** Each linked pair draws in its **own colour** with a **mode icon**; two ends on the **same floor** get a translucent **connecting line + name label**; an end whose partner is on **another floor** gets a **"↑ Floor"/"↓ Floor" badge** (covering straight up/down). **Hover or select** a marker for a card (name · type · destination), and **drag** a marker to have its line/badge follow.
+- **Unpaired-file warning on import** — a folder with an image but no JSON (or vice-versa) lists what was skipped instead of silently importing fewer floors.
 
 ## [Notes]
-- Floor edits are written safely: every change sends the **complete `levels` array** via `scene.update`, then reads it back and warns on count/id drift (worst case a no-op, never data loss). All level writes are **serialized** so a fast edit-then-click can't clobber. Reorder **swaps elevation bands** (the list is elevation-ordered); because regions bind by level `_id`, **stairs stay attached** through any rename or reorder.
-- Statically verified (`node --check`, JSON-valid, template/selector contract checked); pending a live v14 confirmation as usual.
+- Floor edits use a safe write path: every change sends the **complete `levels` array** via `scene.update`, reads it back, and warns on count/id drift (worst case a no-op, never data loss). Writes are **serialized**; reorder **swaps elevation bands** and, because regions bind by level `_id`, **stairs stay attached** through any rename/reorder/image-swap.
+- The canvas overlay is GM-only and fully feature-detected: if a v14 hook is absent it degrades cleanly (drag-follow falls back to **snap-on-drop**; the hover card simply doesn't show) — the lines/badges always draw.
+- Statically verified (`node --check`, JSON-valid, selector/action contracts) and put through a four-lens adversarial code review (correctness, v14-API safety, PIXI/DOM lifecycle, design fidelity) — no critical/high findings; the player-overlay refactor was verified behaviour-preserving. Still pending a live v14 confirmation in a running world, as usual.
 
 # 0.3.2
 
