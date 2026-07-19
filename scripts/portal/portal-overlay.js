@@ -42,6 +42,10 @@ const MODE_GLYPH = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
 /** Cross-floor direction arrows — swap to "^"/"v" here if a build renders these as tofu. */
 const ARROW_UP = "↑";
 const ARROW_DOWN = "↓";
+// Bolder filled triangles for the on-canvas cross-floor badge (more legible at a
+// glance than the thin arrows used in the hover card's text).
+const BADGE_UP = "▲";
+const BADGE_DOWN = "▼";
 
 /** Lazily (re)create the overlay Graphics on the controls layer. */
 function ensureOverlay() {
@@ -122,6 +126,14 @@ export function drawPortalOverlay() {
     const currentLevel = getCurrentLevelId(scene);
     const ringR = (scene.grid?.size ?? 100) * 0.35;
 
+    // The same-floor connecting line is a bold editing aid while you're on the
+    // Regions layer, but clutters normal play — so fade it to a faint hint
+    // elsewhere. The portal rings/icons and the ↑/↓ cross-floor badges stay full
+    // (they mark where the portals are, and — for stacked stairs — which way they go).
+    const editing = !!(canvas?.regions?.active);
+    const lineAlpha = editing ? 0.4 : 0.06;
+    const lineLabelAlpha = editing ? 0.5 : 0.1;
+
     // Level elevation + name maps, computed once (the overlay redraws often).
     const levels = getSceneLevels(scene);
     const elevById = new Map(levels.map((l) => [l._id, l.elevation?.bottom ?? 0]));
@@ -200,12 +212,12 @@ export function drawPortalOverlay() {
         for (let i = 0; i < onCenters.length; i++) {
           if (i === anchorIdx) continue;
           const b = onCenters[i];
-          g.lineStyle(3, color, 0.4);
+          g.lineStyle(3, color, lineAlpha);
           g.moveTo(a.c.x, a.c.y);
           g.lineTo(b.c.x, b.c.y);
           const mid = { x: (a.c.x + b.c.x) / 2, y: (a.c.y + b.c.y) / 2 };
           const lbl = a.e.portal?.label || b.e.portal?.label || "Stairs";
-          labels.addChild(drawCanvasLabel(mid, lbl, { fontSize: 13, bg: color, bgAlpha: 0.5 }));
+          labels.addChild(drawCanvasLabel(mid, lbl, { fontSize: 13, bg: color, bgAlpha: lineLabelAlpha }));
         }
       }
 
@@ -224,9 +236,11 @@ export function drawPortalOverlay() {
           let stack = 0;
           for (const plid of partnerLids) {
             const up = elevById.get(plid) > viewedBottom;
-            const text = `${up ? ARROW_UP : ARROW_DOWN} ${nameById.get(plid)}`;
+            // Bigger, bolder, filled-triangle badge — for stacked stairs (same spot,
+            // different floors) there's no line, so this is the whole up/down cue.
+            const text = `${up ? BADGE_UP : BADGE_DOWN} ${nameById.get(plid)}`;
             labels.addChild(drawCanvasLabel(c, text, {
-              fontSize: 13, bg: color, bgAlpha: 0.85, offsetY: -10 - stack * 22
+              fontSize: 16, bg: color, bgAlpha: 0.92, offsetY: -12 - stack * 26
             }));
             stack++;
           }
@@ -327,6 +341,9 @@ export function registerPortalOverlayHooks() {
   for (const hook of ["createRegion", "updateRegion", "deleteRegion"]) {
     Hooks.on(hook, (doc) => { if (doc?.parent?.id === canvas?.scene?.id) scheduleDraw(); });
   }
+  // Entering/leaving the Regions layer toggles the connecting-line opacity, so
+  // repaint when the scene controls re-render (which happens on a layer/tool change).
+  Hooks.on("renderSceneControls", () => { if (game.user?.isGM) scheduleDraw(); });
 
   // Drag-follow: a region placeable re-renders during a drag, firing refreshRegion.
   // Fast-redraw (RAF-coalesced) only for portal regions on this scene, so the line/

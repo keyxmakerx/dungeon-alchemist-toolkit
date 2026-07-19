@@ -1,6 +1,6 @@
 # 0.5.2
 
-Multi-level stairs and clearer transit prompts.
+Multi-level stairs, clearer transit prompts, and a tidier GM canvas overlay.
 
 ## [Added]
 - **Multi-level staircases.** The stairs wizard is no longer limited to two floors:
@@ -15,6 +15,13 @@ Multi-level stairs and clearer transit prompts.
 - **Each floor's stop is named by its floor** (e.g. "Ground Floor", "Upper Floor") and
   is editable, so the "which floor?" picker reads clearly — "Use stairs → Ground Floor
   / Upper Floor / Attic".
+- **GM overlay declutters during play.** The same-floor connecting line is bold only
+  while you're on the **Regions layer** (editing stairs); on the Token layer / normal
+  play it fades to a faint hint. The portal rings and cross-floor badges stay visible.
+- **Clearer up/down for stacked stairs.** When a stair's ends sit at the same spot on
+  different floors (a spiral), there's no connecting line — so the cross-floor
+  indicator is now a bigger, bolder **▲/▼ + floor-name** badge, making the up/down
+  direction obvious at a glance.
 
 # 0.5.1
 
