@@ -138,11 +138,14 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
   // Fetch each floor's JSON independently: one corrupt/truncated JSON drops just
   // that floor (with a warning) instead of aborting the whole import and losing
   // every good floor — mirroring the per-entry resilience used for walls/lights.
-  const settled = await Promise.all(pairs.map(async (p) => {
+  const settled = await Promise.all(pairs.map(async (p, origIndex) => {
     try {
       const res = await fetch(p.json);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return { ...p, data: await res.json() };
+      // Carry this floor's positional override + initial-level flag ON the floor
+      // object so they stay bound to the RIGHT floor even when a floor below is
+      // dropped (filtering would otherwise shift the positional indices).
+      return { ...p, data: await res.json(), _ov: levelOverrides[origIndex] ?? null, _initial: origIndex === initialLevelIndex };
     } catch (err) {
       console.warn(`[DA Importer] skipping floor "${p.stem}" — ${p.json}: ${err.message}`);
       return null;
@@ -221,7 +224,7 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
   const sceneGridColor = /^#[0-9a-f]{6}$/i.test(first.gridColor) ? first.gridColor : "#000000";
 
   const levels = floors.map((f, i) => {
-    const ov = levelOverrides[i];
+    const ov = f._ov;
     const name = ov?.name?.trim() || `Floor ${i}`;
     const defaultBottom = i === 0 ? 0 : i * FLOOR_HEIGHT + 1;
     const defaultTop = (i + 1) * FLOOR_HEIGHT;
@@ -253,7 +256,7 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
   // level immediately below it. Finer cross-level visibility is set natively via
   // the v14 Levels tab in Scene Config after import.
   levels.forEach((level, i) => {
-    const ov = levelOverrides[i];
+    const ov = floors[i]._ov;
     const visIds = [];
     if (i > 0 && ov?.isRoof) visIds.push(levels[i - 1]._id);
     level.visibility.levels = visIds;
@@ -313,7 +316,10 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
       dark: { hue: 0, intensity: 0, luminosity: -0.25, saturation: 0, shadows: 0 }
     },
     levels,
-    initialLevel: (levels[initialLevelIndex] ?? levels[0])._id,
+    // floors[i] ↔ levels[i], so the initial floor's index in floors is its index
+    // in levels. Using the carried _initial flag keeps it correct even if a floor
+    // was dropped (a stale positional initialLevelIndex would point elsewhere).
+    initialLevel: (levels[floors.findIndex((f) => f._initial)] ?? levels[0])._id,
     walls,
     lights
   };
