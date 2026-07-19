@@ -59,8 +59,9 @@ async function promptStairsOptions() {
       <input type="text" name="label" value="Stairs" />
     </div>
     <label class="da-stairs-opts-check">
-      <input type="checkbox" name="twoWay" checked /> Two-way (destination links back)
+      <input type="checkbox" name="twoWay" checked /> Two-way (destinations link back)
     </label>
+    <p class="hint">Place the first floor, then keep adding floors and click <strong>Done</strong> — a spiral staircase can connect every floor, and stepping on it asks which floor to go to.</p>
   </div>`;
   try {
     return await foundry.applications.api.DialogV2.prompt({
@@ -188,39 +189,47 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
     settleTimer = setTimeout(settle, 1500);          // fallback if no teardown/ready cycle fires
   };
 
-  const otherLevel = (id) => levels.find((l) => l._id !== id)?._id ?? id;
-  const captured = [
-    { rect: null, levelId: getCurrentLevelId(scene) },                       // entrance
-    { rect: null, levelId: null }                                            // exit
-  ];
+  // Place a footprint on each floor the stair connects. Start with 2 (entrance +
+  // one destination); the GM keeps adding floors and clicks Done to finish, so a
+  // spiral staircase can span the whole building. Each entry is {rect, levelId}.
+  const captured = [];
+  let doneClicked = false;
+  banner.onDone = () => { doneClicked = true; currentCtrl?.abort(); };
+
+  // Default the next floor to the first level not yet used (so floors don't stack
+  // on top of each other by default); fall back to the current/first level.
+  const nextUnusedLevel = () => {
+    const used = new Set(captured.map((c) => c.levelId));
+    return levels.find((l) => !used.has(l._id))?._id ?? getCurrentLevelId(scene) ?? levels[0]?._id ?? null;
+  };
 
   try {
-    let step = 0;
-    while (step < 2) {
-      const idx = step;
-      const isEntrance = idx === 0;
-      if (captured[idx].levelId == null) {
-        captured[idx].levelId = isEntrance ? getCurrentLevelId(scene) : otherLevel(captured[0].levelId);
-      }
-      await switchViewedLevel(captured[idx].levelId);
+    while (true) {
+      const isFirst = captured.length === 0;
+      let levelId = isFirst ? (getCurrentLevelId(scene) ?? levels[0]?._id ?? null) : nextUnusedLevel();
+      await switchViewedLevel(levelId);
 
-      const title = isEntrance
+      const canFinish = captured.length >= 2;
+      const title = isFirst
         ? t("DAT.Stairs.StepEntrance", { mode, label })
-        : t("DAT.Stairs.StepExit", { mode, label });
+        : t("DAT.Stairs.StepMore", { label, count: captured.length });
       const hint = t("DAT.Stairs.StepHint");
       banner.setStep(title, hint);
-      banner.showLevelPicker(levels, captured[idx].levelId, isEntrance ? "Entrance floor" : "Exit floor");
-      banner.showBack(!isEntrance);
-      banner.onPickLevel = (id) => { captured[idx].levelId = id; switchViewedLevel(id).catch(() => {}); };
+      banner.showLevelPicker(levels, levelId, isFirst ? "Entrance floor" : "Floor");
+      banner.showBack(!isFirst);
+      banner.showDone(canFinish);
+      banner.onPickLevel = (id) => { levelId = id; switchViewedLevel(id).catch(() => {}); };
 
-      // Ghost the entrance while placing the exit; clear it on the entrance step.
+      // Ghost every floor placed so far while placing the next.
       try { removeGhost?.(); } catch (_) { /* ignore */ }
-      removeGhost = (!isEntrance && captured[0].rect) ? drawGhostRect(captured[0].rect) : null;
+      const ghosts = captured.map((c) => (c.rect ? drawGhostRect(c.rect) : null)).filter(Boolean);
+      removeGhost = () => ghosts.forEach((g) => { try { g(); } catch (_) { /* ignore */ } });
 
       if (!banner.el) ui.notifications.info(`${title} — ${hint}`);
 
       currentCtrl = new AbortController();
       goBack = false;
+      doneClicked = false;
       let rect = null;
       try {
         rect = await pickCanvasRectangle({ signal: currentCtrl.signal });
@@ -229,11 +238,11 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       }
 
       if (flowCancelled) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
-      if (goBack) { step = Math.max(0, step - 1); continue; }
+      if (doneClicked && captured.length >= 2) break;     // finish with the floors placed
+      if (goBack) { captured.pop(); continue; }            // re-place the previous floor
       if (!rect) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
 
-      captured[idx].rect = rect;
-      step += 1;
+      captured.push({ rect, levelId });
     }
   } catch (err) {
     ui.notifications.error(t("DAT.Stairs.PlacementFailed", { error: err.message }));
@@ -242,17 +251,16 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
     return;
   }
 
+  if (captured.length < 2) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
+
   try {
     const regions = await createLinkedStairs({
       scene, mode, label, twoWay,
-      segments: [
-        { x: captured[0].rect.x, y: captured[0].rect.y, width: captured[0].rect.width, height: captured[0].rect.height, levelId: captured[0].levelId },
-        { x: captured[1].rect.x, y: captured[1].rect.y, width: captured[1].rect.width, height: captured[1].rect.height, levelId: captured[1].levelId }
-      ]
+      segments: captured.map((c) => ({ x: c.rect.x, y: c.rect.y, width: c.rect.width, height: c.rect.height, levelId: c.levelId }))
     });
     const count = regions?.length ?? 0;
-    const sameLevel = captured[0].levelId && captured[0].levelId === captured[1].levelId;
-    ui.notifications.info(t(sameLevel ? "DAT.Stairs.CreatedTeleport" : "DAT.Stairs.Created", { count }));
+    const allSameLevel = captured.every((c) => c.levelId === captured[0].levelId);
+    ui.notifications.info(t(allSameLevel ? "DAT.Stairs.CreatedTeleport" : "DAT.Stairs.Created", { count }));
   } catch (err) {
     ui.notifications.error(t("DAT.Stairs.CreateFailed", { error: err.message }));
     console.error(err);

@@ -1,3 +1,21 @@
+# 0.5.2
+
+Multi-level stairs and clearer transit prompts.
+
+## [Added]
+- **Multi-level staircases.** The stairs wizard is no longer limited to two floors:
+  place the footprint on each floor the stair connects, then click **Done** — perfect
+  for a spiral staircase spanning a whole building. All floors interconnect (a full
+  mesh), so stepping onto any floor's stair lets you pick **any** other connected floor.
+
+## [Changed]
+- **Transit prompt reads by action, not "teleport token".** The confirm/picker now
+  says **"Use stairs"** (or **"Teleport"**) instead of the generic native text, via
+  v14's teleport `dialog` message field.
+- **Each floor's stop is named by its floor** (e.g. "Ground Floor", "Upper Floor") and
+  is editable, so the "which floor?" picker reads clearly — "Use stairs → Ground Floor
+  / Upper Floor / Attic".
+
 # 0.5.1
 
 Follow-up fixes to the stairs/portal system.

@@ -19,7 +19,7 @@
 
 import { MODULE_ID, PORTAL_FLAG, FLOOR_HEIGHT } from "../constants.js";
 import { getSceneLevels } from "../levels.js";
-import { requireGM } from "../util.js";
+import { requireGM, t } from "../util.js";
 
 /**
  * Mode presets — map the friendly mode to native `teleportToken` config + look.
@@ -28,10 +28,22 @@ import { requireGM } from "../util.js";
  * - trap: silent (`choice:false`), hidden region, one-way (no return behavior).
  */
 export const MODE_PRESETS = {
-  stairs:   { choice: true,  revealed: true,  hidden: false, color: "#b0cc28" },
-  teleport: { choice: true,  revealed: true,  hidden: false, color: "#28a0cc" },
-  trap:     { choice: false, revealed: false, hidden: true,  color: "#cc4628" }
+  stairs:   { choice: true,  revealed: true,  hidden: false, color: "#b0cc28", verbKey: "DAT.Stairs.VerbStairs" },
+  teleport: { choice: true,  revealed: true,  hidden: false, color: "#28a0cc", verbKey: "DAT.Stairs.VerbTeleport" },
+  trap:     { choice: false, revealed: false, hidden: true,  color: "#cc4628", verbKey: "" }
 };
+
+/**
+ * The player-facing action verb for a mode ("Use stairs" / "Teleport"), used as
+ * the teleport confirmation/picker message so it doesn't read as the generic
+ * "teleport token". Empty for traps (silent, no prompt).
+ * @param {string} mode
+ * @returns {string}
+ */
+function modeVerb(mode) {
+  const key = (MODE_PRESETS[mode] ?? MODE_PRESETS.stairs).verbKey;
+  return key ? t(key) : "";
+}
 
 /**
  * A Region's global UUID (e.g. "Scene.abc.Region.def"), used as a teleport
@@ -218,7 +230,9 @@ function buildPortalRegionData({ scene, x, y, width, height, levelId, flag, colo
   const w = Number.isFinite(width) && width > 0 ? width : gridSize;
   const h = Number.isFinite(height) && height > 0 ? height : gridSize;
   return {
-    name: flag.label || "Portal",
+    // Name each end by its floor so the native teleport picker reads by
+    // destination ("Use stairs → Ground Floor / Upper Floor"). Editable after.
+    name: level?.name || flag.label || "Portal",
     color,
     elevation: { bottom, top },
     levels: levelId ? [levelId] : [],
@@ -248,7 +262,7 @@ function buildPortalRegionData({ scene, x, y, width, height, levelId, flag, colo
  * @param {boolean} p.revealed       Reveal destination name(s) in the prompt (if supported).
  * @returns {object}
  */
-function buildTeleportBehavior({ destinations, choice, revealed }) {
+function buildTeleportBehavior({ destinations, choice, revealed, message = "" }) {
   const dests = [...destinations];
   const primary = dests[0] ?? null;
   // >1 destination: force the confirm/picker so native doesn't silently pick at random.
@@ -262,7 +276,11 @@ function buildTeleportBehavior({ destinations, choice, revealed }) {
   // One-time diagnostic so the live field names are a single console line.
   if (!buildTeleportBehavior._logged) {
     buildTeleportBehavior._logged = true;
-    try { console.debug("[DA Toolkit] teleportToken schema fields:", Object.keys(schema?.fields ?? {})); } catch { /* ignore */ }
+    try {
+      console.debug("[DA Toolkit] teleportToken schema fields:", Object.keys(schema?.fields ?? {}));
+      const df = schema?.fields?.dialog?.fields;
+      if (df) console.debug("[DA Toolkit] teleportToken dialog sub-fields:", Object.keys(df));
+    } catch { /* ignore */ }
   }
 
   let system;
@@ -278,6 +296,27 @@ function buildTeleportBehavior({ destinations, choice, revealed }) {
     system = { destinations: dests, destination: primary, choice: wantChoice, revealed: !!revealed };
   }
 
+  // Custom confirm/picker text so it reads "Use stairs" / "Teleport" instead of the
+  // generic native message. v14 added a `dialog` field; its exact sub-schema can't be
+  // read offline, so adaptively set only a string sub-field the live build declares
+  // (unknown keys are dropped by the DataModel — never breaks creation, and degrades
+  // to the native default). The one-time log above prints the real sub-field names.
+  if (message && hasField("dialog")) {
+    try {
+      const df = schema?.fields?.dialog?.fields;
+      if (df) {
+        const dlg = {};
+        for (const k of ["message", "prompt", "text", "content", "label", "title", "description"]) {
+          if (df[k]) { dlg[k] = message; break; }
+        }
+        for (const k of ["display", "enabled", "show", "confirm"]) {
+          if (df[k]) { dlg[k] = true; break; }
+        }
+        if (Object.keys(dlg).length) system.dialog = dlg;
+      }
+    } catch { /* native default text */ }
+  }
+
   return { name: "Teleport", type: "teleportToken", system, disabled: false, flags: {} };
 }
 
@@ -290,13 +329,13 @@ function buildTeleportBehavior({ destinations, choice, revealed }) {
  * @param {string[]} targets   Destination Region UUIDs (empty = remove teleport).
  * @param {{choice:boolean,revealed:boolean}} preset
  */
-async function replaceTeleportBehavior(region, targets, preset) {
+async function replaceTeleportBehavior(region, targets, preset, message = "") {
   const behaviors = region.behaviors?.contents ?? Array.from(region.behaviors ?? []);
   const stale = behaviors.filter((b) => b.type === "teleportToken").map((b) => b.id);
   if (stale.length) await region.deleteEmbeddedDocuments("RegionBehavior", stale);
   if (targets.length) {
     await region.createEmbeddedDocuments("RegionBehavior", [
-      buildTeleportBehavior({ destinations: targets, choice: preset.choice, revealed: preset.revealed })
+      buildTeleportBehavior({ destinations: targets, choice: preset.choice, revealed: preset.revealed, message })
     ]);
   }
 }
@@ -327,13 +366,19 @@ export async function bindPortals({ regions, mode = "stairs", label = "Stairs", 
   const linkId = regions.map(getPortalFlag).find((f) => f?.linkId)?.linkId ?? foundry.utils.randomID();
 
   const uuids = regions.map((r) => regionUuid(r));
+  const message = modeVerb(mode);
   for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
     const isEntrance = i === 0;
     await region.setFlag(MODULE_ID, PORTAL_FLAG, { linkId, label, mode, role: isEntrance ? "entrance" : "destination" });
     try { await region.update({ color: preset.color, hidden: !!(preset.hidden && isEntrance) }); } catch (_) { /* non-fatal */ }
-    const targets = isEntrance ? uuids.slice(1) : (bidirectional ? [uuids[0]] : []);
-    await replaceTeleportBehavior(region, targets, preset);
+    // Full mesh when two-way: every end reaches every OTHER end, so a spiral
+    // staircase's floors all interconnect (from any floor, pick any other). One-way
+    // (trap): only the entrance reaches the rest. For 2 ends this is unchanged.
+    const targets = bidirectional
+      ? uuids.filter((_, j) => j !== i)
+      : (isEntrance ? uuids.slice(1) : []);
+    await replaceTeleportBehavior(region, targets, preset, message);
   }
   return linkId;
 }

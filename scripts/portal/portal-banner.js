@@ -16,6 +16,7 @@ export class PlacementBanner {
     this.el = null;
     /** @type {(() => void)|null} */ this.onCancel = null;
     /** @type {(() => void)|null} */ this.onBack = null;
+    /** @type {(() => void)|null} */ this.onDone = null;
     /** @type {((levelId: string) => void)|null} */ this.onPickLevel = null;
   }
 
@@ -32,6 +33,7 @@ export class PlacementBanner {
           <select class="da-place-level"></select>
         </label>
         <span class="da-place-spacer"></span>
+        <button type="button" class="da-place-done" hidden>${t("DAT.Stairs.BtnDone")}</button>
         <button type="button" class="da-place-back" hidden>${t("DAT.Stairs.BtnBack")}</button>
         <button type="button" class="da-place-cancel">${t("DAT.Stairs.BtnCancel")}</button>
       </div>`;
@@ -39,6 +41,7 @@ export class PlacementBanner {
     this.el = el;
     el.querySelector(".da-place-cancel").addEventListener("click", () => this.onCancel?.());
     el.querySelector(".da-place-back").addEventListener("click", () => this.onBack?.());
+    el.querySelector(".da-place-done").addEventListener("click", () => this.onDone?.());
     el.querySelector(".da-place-level").addEventListener("change", (e) => this.onPickLevel?.(e.target.value));
   }
 
@@ -88,6 +91,12 @@ export class PlacementBanner {
   showBack(show) {
     if (!this.el) return;
     this.el.querySelector(".da-place-back").hidden = !show;
+  }
+
+  /** Show/hide the Done (finish placing floors) button. */
+  showDone(show) {
+    if (!this.el) return;
+    this.el.querySelector(".da-place-done").hidden = !show;
   }
 
   /** Remove the banner from the DOM. Idempotent. */
