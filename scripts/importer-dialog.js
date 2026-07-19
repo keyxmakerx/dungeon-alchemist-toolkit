@@ -773,12 +773,17 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     }));
 
     const initialLevelIndex = Math.max(0, this._floorPairs.findIndex(p => p.uid === this._initialLevelUid));
+    // Pass the dialog's own detected + reordered floors so the scene honors the
+    // exact order shown here. Without this, importFolder would re-browse and
+    // re-sort the folder independently, silently discarding any drag-reorder and
+    // applying the positional levelOverrides/initialLevelIndex to the WRONG floors.
+    const pairs = this._floorPairs;
     // Safeguard: importFolder handles Scene.create errors internally, but guard the
     // whole call so any unexpected failure (file I/O, mapping) surfaces a toast
     // instead of an unhandled rejection that leaves the dialog in a dead state.
     let scene;
     try {
-      scene = await importFolder({ source, path: folder, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides, initialLevelIndex });
+      scene = await importFolder({ source, path: folder, pairs, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides, initialLevelIndex });
     } catch (err) {
       ui.notifications.error(t("DAT.Importer.ImportFailed", { error: err.message }));
       console.error(err);
