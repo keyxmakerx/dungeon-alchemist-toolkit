@@ -630,6 +630,7 @@ body.da-region-picking canvas {
 .da-stairs-mode--stairs { color: #b0cc28; }
 .da-stairs-mode--teleport { color: #28a0cc; }
 .da-stairs-mode--trap { color: #cc4628; }
+.da-stairs-mode--legacy { color: #b9a24a; opacity: 0.85; }
 .da-stairs-label { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .da-stairs-tools { display: flex; gap: 0.25rem; }
 .da-stairs-tools button { width: 1.8rem; flex: 0 0 auto; }

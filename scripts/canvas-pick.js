@@ -55,7 +55,9 @@ export function pickCanvasRectangle({ signal } = {}) {
     let done = false;
 
     const drawPreview = (a, b) => {
-      if (!preview) return;
+      // `preview` lives on canvas.controls, which a mid-pick canvas rebuild (e.g. an
+      // in-wizard floor switch) destroys — so guard against drawing into a dead Graphics.
+      if (!preview || preview.destroyed) return;
       const x = Math.min(a.x, b.x);
       const y = Math.min(a.y, b.y);
       const w = Math.abs(b.x - a.x);
@@ -142,8 +144,10 @@ export function pickCanvasRectangle({ signal } = {}) {
       signal?.removeEventListener("abort", onAbort);
       document.body.classList.remove("da-region-picking");
       if (preview) {
-        preview.parent?.removeChild(preview);
-        preview.destroy();
+        if (!preview.destroyed) {
+          preview.parent?.removeChild(preview);
+          preview.destroy();
+        }
         preview = null;
       }
     };

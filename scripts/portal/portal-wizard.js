@@ -22,6 +22,24 @@ import { PlacementBanner } from "./portal-banner.js";
 let _placementActive = false;
 
 /**
+ * Snapshot the current camera (world-space view center + zoom), matching the
+ * shape `canvas.pan({x,y,scale})` accepts, so an in-wizard level switch that
+ * re-views the scene can be re-centered afterward (keeping the entrance ghost and
+ * the exit placement aligned). Guarded — returns null if the canvas isn't ready.
+ * @returns {{x:number,y:number,scale:number}|null}
+ */
+function _captureCamera() {
+  try { return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x }; }
+  catch (_) { return null; }
+}
+
+/** Pan/zoom back to a snapshot from _captureCamera (no-op if null or unavailable). */
+function _restoreCamera(cam) {
+  if (!cam) return;
+  try { canvas.pan(cam); } catch (_) { /* ignore */ }
+}
+
+/**
  * Small DialogV2 to choose the portal type / label / directionality before
  * placing. Resolves to `{mode,label,twoWay}`, or null if cancelled.
  */
@@ -120,20 +138,54 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
   let flowCancelled = false;
   let goBack = false;
   let currentCtrl = null;
+  // Suppress the teardown-cancel while WE switch the viewed level between steps
+  // (that switch re-views the scene, which fires canvasTearDown). switchGen makes a
+  // stale settle from an earlier switch a no-op; settleTimer is the lift fallback.
+  let suppressCancel = false;
+  let switchGen = 0;
+  let settleTimer = null;
 
   banner.onCancel = () => { flowCancelled = true; currentCtrl?.abort(); };
   banner.onBack = () => { goBack = true; currentCtrl?.abort(); };
 
-  // A scene change/teardown mid-placement aborts the flow (and the active pick).
-  const onTearDown = () => { flowCancelled = true; currentCtrl?.abort(); };
-  Hooks.once("canvasTearDown", onTearDown);
+  // A genuine scene change/teardown mid-placement aborts the flow (and the active
+  // pick) — but NOT a teardown caused by our own in-wizard level switch. Persistent
+  // (Hooks.on) so it survives the repeated switches a multi-floor stair needs.
+  const onTearDown = () => {
+    if (suppressCancel) return;
+    flowCancelled = true;
+    currentCtrl?.abort();
+  };
+  Hooks.on("canvasTearDown", onTearDown);
 
   const cleanup = () => {
     Hooks.off("canvasTearDown", onTearDown);
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
     try { removeGhost?.(); } catch (_) { /* ignore */ }
     removeGhost = null;
     banner.destroy();
     _placementActive = false;
+  };
+
+  // Switch the viewed level WITHOUT letting the resulting canvas re-view cancel the
+  // flow (onTearDown is suppressed) or leave the entrance ghost off-center (the
+  // camera is restored once the rebuilt canvas is ready). A generation token means
+  // only the latest switch's settle acts, and the camera is never yanked back after
+  // the flow has ended (_placementActive guard).
+  const switchViewedLevel = async (levelId) => {
+    const gen = ++switchGen;
+    const cam = _captureCamera();
+    suppressCancel = true;
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    const settle = () => {
+      if (gen !== switchGen) return;                 // superseded by a newer switch
+      if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+      suppressCancel = false;
+      if (_placementActive) _restoreCamera(cam);     // don't re-pan after cleanup()
+    };
+    try { Hooks.once("canvasReady", settle); } catch (_) { /* ignore */ }
+    try { await viewLevel(levelId); } catch (_) { /* non-fatal */ }
+    settleTimer = setTimeout(settle, 1500);          // fallback if no teardown/ready cycle fires
   };
 
   const otherLevel = (id) => levels.find((l) => l._id !== id)?._id ?? id;
@@ -150,7 +202,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       if (captured[idx].levelId == null) {
         captured[idx].levelId = isEntrance ? getCurrentLevelId(scene) : otherLevel(captured[0].levelId);
       }
-      try { await viewLevel(captured[idx].levelId); } catch (_) { /* non-fatal */ }
+      await switchViewedLevel(captured[idx].levelId);
 
       const title = isEntrance
         ? t("DAT.Stairs.StepEntrance", { mode, label })
@@ -159,7 +211,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       banner.setStep(title, hint);
       banner.showLevelPicker(levels, captured[idx].levelId, isEntrance ? "Entrance floor" : "Exit floor");
       banner.showBack(!isEntrance);
-      banner.onPickLevel = (id) => { captured[idx].levelId = id; viewLevel(id).catch(() => {}); };
+      banner.onPickLevel = (id) => { captured[idx].levelId = id; switchViewedLevel(id).catch(() => {}); };
 
       // Ghost the entrance while placing the exit; clear it on the entrance step.
       try { removeGhost?.(); } catch (_) { /* ignore */ }

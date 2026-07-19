@@ -17,7 +17,7 @@
  * rather than breaking the canvas.
  */
 
-import { getPortalLinkGroups, regionCenter, regionLevelId, getPortalFlag } from "./portal-core.js";
+import { getPortalLinkGroups, regionCenter, regionLevelId, regionLevelIds, getPortalFlag } from "./portal-core.js";
 import { getCurrentLevelId, getSceneLevels } from "../levels.js";
 import { linkColor } from "./portal-color.js";
 import { drawCanvasLabel } from "./canvas-label.js";
@@ -136,8 +136,11 @@ export function drawPortalOverlay() {
       const onLevel = [];
       const offLevel = [];
       for (const e of entries) {
-        const lid = regionLevelId(e.region);
-        if (!currentLevel || lid === currentLevel) onLevel.push(e);
+        // Membership, not equality: a legacy region bound to several floors rings
+        // on each floor it touches. A normal portal is single-level (levels:[id]),
+        // so this is identical to the old equality check for it.
+        const lids = regionLevelIds(e.region);
+        if (!currentLevel || lids.length === 0 || lids.includes(currentLevel)) onLevel.push(e);
         else offLevel.push(e);
       }
 

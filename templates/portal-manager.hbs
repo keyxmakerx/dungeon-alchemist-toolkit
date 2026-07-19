@@ -10,11 +10,18 @@
           <li class="da-stairs-item" data-link-id="{{this.linkId}}">
             <div class="da-stairs-head">
               <span class="da-stairs-mode da-stairs-mode--{{this.mode}}">{{this.mode}}</span>
+              {{#if this.legacy}}<span class="da-stairs-mode da-stairs-mode--legacy">{{localize "DAT.Dash.LegacyBadge"}}</span>{{/if}}
               <span class="da-stairs-label">{{this.label}}</span>
               <span class="da-stairs-tools">
+                {{#if this.legacy}}
+                <button type="button" data-action="adopt" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AdoptStair"}}">
+                  <i class="fas fa-wand-magic-sparkles"></i>
+                </button>
+                {{else}}
                 <button type="button" data-action="edit" data-link-id="{{this.linkId}}" data-tooltip="Open the entrance region's config sheet">
                   <i class="fas fa-pen"></i>
                 </button>
+                {{/if}}
                 <button type="button" class="da-stairs-del" data-action="remove" data-link-id="{{this.linkId}}" data-tooltip="Delete both ends">
                   <i class="fas fa-trash"></i>
                 </button>
