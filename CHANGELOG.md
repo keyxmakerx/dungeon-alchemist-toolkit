@@ -1,3 +1,21 @@
+# 0.5.1
+
+Follow-up fixes to the stairs/portal system.
+
+## [Fixed]
+- **Legacy stair regions are no longer invisible.** A region made by the old
+  `DA.AddRegion` tool (a `changeLevel` region with no portal flag) rendered on the
+  canvas but showed as *"No stairs"* in the manager. The Level Manager, the standalone
+  Stairs Manager, and the GM canvas overlay now surface these too — tagged **legacy**,
+  with **Adopt** (make it a managed portal, keeping its transit behavior) and **Remove**
+  actions. A multi-level legacy region is listed on every floor it spans.
+- **Placing the second stair end no longer cancels or lands off-center.** Switching to
+  the exit floor mid-placement re-views the scene, which panned the camera (so the
+  entrance ghost looked off-center) and fired `canvasTearDown` — which the wizard's own
+  handler mistook for "user left" and discarded the exit you then drew. In-wizard level
+  switches are now suppressed from cancelling the flow and restore the camera, while a
+  genuine scene change still cancels.
+
 # 0.5.0
 
 **The Level Manager becomes a full manager** (redesign Concept A), plus a robust
@@ -28,19 +46,6 @@ scene with one level per floor**, whatever your files are named.
   independently (a corrupt one is skipped with a warning), scene dimensions fall back
   to any floor with valid data, and a failed image copy keeps that floor on its
   original path instead of aborting the whole import.
-- **Legacy stair regions are no longer invisible.** A region made by the old
-  `DA.AddRegion` tool (a `changeLevel` region with no portal flag) rendered on the
-  canvas but showed as *"No stairs"* in the manager. The Level Manager, the standalone
-  Stairs Manager, and the GM canvas overlay now surface these too — tagged **legacy**,
-  with **Adopt** (make it a managed portal, keeping its transit behavior) and **Remove**
-  actions. A multi-level legacy region is listed on every floor it spans.
-- **Placing the second stair end no longer cancels or lands off-center.** Switching to
-  the exit floor mid-placement re-views the scene, which panned the camera (so the
-  entrance ghost looked off-center) and fired `canvasTearDown` — which the wizard's own
-  handler mistook for "user left" and discarded the exit you then drew. In-wizard level
-  switches are now suppressed from cancelling the flow and restore the camera, while a
-  genuine scene change still cancels.
-
 ## [Added]
 - **Full floor management in the Level Manager.** Select a floor and, on the right: **rename**, set **elevation** (bottom/top, validated), mark the **★ start floor**, **reorder ↑/↓**, **swap the map image** (keeps the floor's stairs/tokens/lights), **add** a floor from an image/video, and **remove** a floor (behind a confirm). An **Open Scene Config (Levels)** link is the escape hatch to Foundry's native tab for cross-level visibility.
 - **In-window import folder browser.** Instead of an OS dialog + "pick a folder and hope", **browse folders inside the window** (source switch, Up, clickable subfolders); the moment you open a folder with Dungeon Alchemist floors they're **auto-detected and offered** ("Import 5 floors"), with thumbnails / names / count previewed inline. Scene/grid/door options collapse into a **Scene & door options** section; the system picker remains as a one-click shortcut.
