@@ -1,6 +1,6 @@
 import { DAImporterDialog } from "./importer-dialog.js";
 import { DARegionAdderDialog } from "./region-adder-dialog.js";
-import { startAddStairs, addStairsInteractive, startLinkRegions } from "./portal/portal-wizard.js";
+import { startAddStairs, addStairsInteractive, startLinkRegions, addFloorToLink } from "./portal/portal-wizard.js";
 import { DAStairsManager } from "./portal/portal-manager.js";
 import { DALevelManager } from "./dashboard.js";
 import { registerToolkitEntries } from "./controls.js";
@@ -45,6 +45,8 @@ Hooks.once("init", () => {
     },
     // Link two already-selected Regions into a teleport pair.
     LinkStairs: (opts) => { if (!requireGM()) return null; return startLinkRegions(canvas?.scene, opts); },
+    // Add another floor to an existing stair/portal link (guided placement).
+    AddFloorToLink: (linkId) => { if (!requireGM()) return null; return addFloorToLink(canvas?.scene, linkId); },
     // Browse / find / edit / delete this scene's stairs/portals. GM-only — the list
     // would otherwise reveal hidden trap locations to players.
     StairsManager: () => { if (!requireGM()) return null; return openSingleton(DAStairsManager, "da-stairs-manager"); },

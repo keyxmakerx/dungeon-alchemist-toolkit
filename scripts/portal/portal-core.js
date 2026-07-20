@@ -429,6 +429,44 @@ export async function createLinkedStairs({ scene, segments, mode = "stairs", lab
 }
 
 /**
+ * Add one or more floors to an EXISTING portal link: create a region per new
+ * segment carrying the link's flag + look, then re-bind the whole group
+ * (existing + new) so the mesh spans every floor. Inherits the link's mode/label.
+ *
+ * @param {Scene} scene
+ * @param {string} linkId
+ * @param {Array<{x:number,y:number,width:number,height:number,levelId:string}>} segments  New floor footprint(s).
+ * @param {{twoWay?:boolean}} [opts]
+ * @returns {Promise<RegionDocument[]>} the newly created regions
+ */
+export async function addPortalsToLink(scene, linkId, segments, { twoWay = true } = {}) {
+  if (!requireGM()) return null;
+  if (!scene) throw new Error("No scene provided.");
+  if (!Array.isArray(segments) || !segments.length) throw new Error("No floors to add.");
+  const existing = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId).map((e) => e.region);
+  if (!existing.length) throw new Error("That stair link no longer exists.");
+  const first = getPortalFlag(existing[0]) ?? {};
+  const mode = first.mode || "stairs";
+  const label = first.label || "Stairs";
+  const preset = MODE_PRESETS[mode] ?? MODE_PRESETS.stairs;
+  const regionData = segments.map((seg) =>
+    buildPortalRegionData({
+      scene,
+      x: seg.x, y: seg.y, width: seg.width, height: seg.height,
+      levelId: seg.levelId,
+      flag: { linkId, label, mode, role: "destination" },
+      color: preset.color,
+      hidden: false
+    })
+  );
+  const created = await scene.createEmbeddedDocuments("Region", regionData);
+  if (!created?.length) throw new Error("Region creation returned no documents.");
+  // Re-bind existing + new so every floor meshes to every other (two-way).
+  await bindPortals({ regions: [...existing, ...created], mode, label, twoWay });
+  return created;
+}
+
+/**
  * Link two *existing* regions into a portal pair (direct-connect). Delegates to
  * the shared bindPortals path: stamps the portal flag, applies the mode's look,
  * and REPLACES each region's teleport behavior (reusing an existing link id), so

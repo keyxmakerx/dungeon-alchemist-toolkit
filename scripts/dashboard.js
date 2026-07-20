@@ -49,6 +49,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       addStairs: DALevelManager.#onAddStairs,
       gotoStair: DALevelManager.#onGotoStair,
       editStair: DALevelManager.#onEditStair,
+      addFloorStair: DALevelManager.#onAddFloorStair,
       adoptStair: DALevelManager.#onAdoptStair,
       removeStair: DALevelManager.#onRemoveStair
     }
@@ -352,14 +353,26 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const modeOpts = ["stairs", "teleport", "trap"]
       .map((m) => `<option value="${m}"${m === curMode ? " selected" : ""}>${m}</option>`).join("");
+    // Per-stop name editor: each region's NAME is what players read in the "which
+    // floor?" picker. List one input per end, prefixed by its floor for context.
+    const levels = getSceneLevels(scene);
+    const lvName = (id) => levels.find((l) => l._id === id)?.name ?? "Floor";
+    const stopRows = regions.map((r) => {
+      const id = r.id ?? r._id;
+      const floor = lvName(regionLevelId(r));
+      return `<div class="form-group"><label>${esc(floor)}</label>
+        <input type="text" name="stop-${esc(id)}" value="${esc(r.name ?? floor)}" placeholder="${esc(floor)}" /></div>`;
+    }).join("");
     const content = `
       <div class="da-stairs-opts">
-        <div class="form-group"><label>Label</label>
+        <div class="form-group"><label>Label (the stair's name)</label>
           <input type="text" name="label" value="${esc(curLabel)}" /></div>
         <div class="form-group"><label>Type</label>
           <select name="mode">${modeOpts}</select></div>
         <label class="da-stairs-opts-check">
-          <input type="checkbox" name="twoWay"${curTwoWay ? " checked" : ""} /> Two-way (destination links back)</label>
+          <input type="checkbox" name="twoWay"${curTwoWay ? " checked" : ""} /> Two-way (destinations link back)</label>
+        <p class="hint" style="margin:0.4rem 0 0.15rem;">Floor names — what players see in the "which floor?" prompt:</p>
+        <div class="da-stairs-stops">${stopRows}</div>
       </div>`;
 
     const choice = await foundry.applications.api.DialogV2.wait({
@@ -370,11 +383,18 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
           action: "save", label: t("DAT.Stairs.BtnSave"), icon: "fas fa-check", default: true,
           callback: (_e, btn) => {
             const f = btn?.form;
+            const names = {};
+            for (const r of regions) {
+              const id = r.id ?? r._id;
+              const v = f?.elements?.[`stop-${id}`]?.value?.trim();
+              if (v) names[id] = v;
+            }
             return {
               action: "save",
               label: f?.elements?.label?.value?.trim() || "Stairs",
               mode: f?.elements?.mode?.value || "stairs",
-              twoWay: f?.elements?.twoWay?.checked ?? true
+              twoWay: f?.elements?.twoWay?.checked ?? true,
+              names
             };
           }
         },
@@ -388,11 +408,27 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (choice.action === "sheet") { entrance.region.sheet?.render(true); return; }
     try {
       await bindPortals({ regions, mode: choice.mode, label: choice.label, twoWay: choice.twoWay });
+      // Apply the per-stop name edits (the picker reads region.name). Only write a
+      // changed name so we don't churn unchanged regions.
+      for (const r of regions) {
+        const id = r.id ?? r._id;
+        const nm = choice.names?.[id];
+        if (nm && nm !== r.name) { try { await r.update({ name: nm }); } catch (_) { /* non-fatal */ } }
+      }
       ui.notifications?.info?.(t("DAT.Stairs.Updated"));
     } catch (err) {
       ui.notifications?.error?.(t("DAT.Stairs.UpdateFailed", { error: err.message }));
       console.error(err);
     }
+    this.render();
+  }
+
+  /** Add another floor to this stair link (guided placement on the canvas). */
+  static async #onAddFloorStair(_event, target) {
+    const linkId = target?.dataset?.linkId;
+    if (!linkId) return;
+    try { await game.modules.get(MODULE_ID).api.AddFloorToLink(linkId); }
+    catch (err) { ui.notifications?.error?.(t("DAT.Stairs.CreateFailed", { error: err.message })); console.error(err); }
     this.render();
   }
 
