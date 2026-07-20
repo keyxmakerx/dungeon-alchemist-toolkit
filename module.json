@@ -1,13 +1,12 @@
 {
   "id": "dungeon-alchemist-toolkit",
   "title": "Dungeon Alchemist Toolkit",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "A Dungeon Alchemist to Foundry VTT v14+ toolkit: imports multi-floor DA exports into a single Scene using native Scene Levels (walls, doors, and lights bound per floor) and adds level/region tooling.",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
   },
-  
   "authors": [
     {
       "name": "Mestre Digital",
@@ -15,13 +14,18 @@
       "flags": {}
     }
   ],
-  
   "esmodules": [
     "scripts/main.js"
   ],
-  "styles": [ "styles/module.css" ],
+  "styles": [
+    "styles/module.css"
+  ],
   "languages": [
-    { "lang": "en", "name": "English", "path": "lang/en.json" }
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
   ],
   "relationships": {},
   "media": [
@@ -32,7 +36,6 @@
     }
   ],
   "bugs": "https://github.com/keyxmakerx/dungeon-alchemist-toolkit/issues",
-
   "url": "https://github.com/keyxmakerx/dungeon-alchemist-toolkit",
   "manifest": "https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/main/module.json",
   "download": "https://codeload.github.com/keyxmakerx/dungeon-alchemist-toolkit/zip/refs/heads/main",

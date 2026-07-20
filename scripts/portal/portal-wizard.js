@@ -12,7 +12,7 @@
  * GM-gated and built on the native `teleportToken` behavior (see portal-core.js).
  */
 
-import { createLinkedStairs, linkExistingRegions, getPortalFlag } from "./portal-core.js";
+import { createLinkedStairs, linkExistingRegions, getPortalFlag, getScenePortals, addPortalsToLink } from "./portal-core.js";
 import { getSceneLevels, getCurrentLevelId, viewLevel } from "../levels.js";
 import { pickCanvasRectangle, drawGhostRect } from "../canvas-pick.js";
 import { requireGM, t } from "../util.js";
@@ -118,7 +118,7 @@ export async function addStairsInteractive(scene = canvas?.scene) {
  * @param {boolean} [opts.twoWay=true]
  * @returns {Promise<void>}
  */
-export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true } = {}) {
+export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true, existingLinkId = null } = {}) {
   if (!requireGM()) return;
   if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
   const levels = getSceneLevels(scene);
@@ -130,6 +130,24 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
     ui.notifications.warn(t("DAT.Stairs.InProgress"));
     return;
   }
+
+  // Adding to an existing link: inherit its mode/label and pre-load its footprints
+  // as faint alignment guides so a new floor lines up with the stack. One new floor
+  // is enough to add (minFloors = 1), vs. 2 for a brand-new stair.
+  let existingRegions = [];
+  let existingRects = [];
+  if (existingLinkId) {
+    existingRegions = getScenePortals(scene).filter((e) => e.portal?.linkId === existingLinkId).map((e) => e.region);
+    if (!existingRegions.length) { ui.notifications.warn(t("DAT.Stairs.GoneLink")); return; }
+    const f = getPortalFlag(existingRegions[0]) ?? {};
+    mode = f.mode || mode;
+    label = f.label || label;
+    existingRects = existingRegions
+      .map((r) => { const s = r.shapes?.[0]; return (s && Number.isFinite(s.x) && Number.isFinite(s.width)) ? { x: s.x, y: s.y, width: s.width, height: s.height } : null; })
+      .filter(Boolean);
+  }
+  const minFloors = existingLinkId ? 1 : 2;
+
   _placementActive = true;
 
   const banner = new PlacementBanner();
@@ -209,20 +227,24 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       let levelId = isFirst ? (getCurrentLevelId(scene) ?? levels[0]?._id ?? null) : nextUnusedLevel();
       await switchViewedLevel(levelId);
 
-      const canFinish = captured.length >= 2;
-      const title = isFirst
-        ? t("DAT.Stairs.StepEntrance", { mode, label })
-        : t("DAT.Stairs.StepMore", { label, count: captured.length });
+      const canFinish = captured.length >= minFloors;
+      const title = existingLinkId
+        ? t("DAT.Stairs.StepAddFloor", { label, count: captured.length })
+        : (isFirst
+          ? t("DAT.Stairs.StepEntrance", { mode, label })
+          : t("DAT.Stairs.StepMore", { label, count: captured.length }));
       const hint = t("DAT.Stairs.StepHint");
       banner.setStep(title, hint);
-      banner.showLevelPicker(levels, levelId, isFirst ? "Entrance floor" : "Floor");
+      banner.showLevelPicker(levels, levelId, existingLinkId ? "Floor to add" : (isFirst ? "Entrance floor" : "Floor"));
       banner.showBack(!isFirst);
       banner.showDone(canFinish);
       banner.onPickLevel = (id) => { levelId = id; switchViewedLevel(id).catch(() => {}); };
 
-      // Ghost every floor placed so far while placing the next.
+      // Ghost every floor placed so far — plus, when adding to an existing link, its
+      // current footprints — as faint alignment guides while placing the next.
       try { removeGhost?.(); } catch (_) { /* ignore */ }
-      const ghosts = captured.map((c) => (c.rect ? drawGhostRect(c.rect) : null)).filter(Boolean);
+      const ghostRects = [...existingRects, ...captured.map((c) => c.rect)].filter(Boolean);
+      const ghosts = ghostRects.map((r) => drawGhostRect(r)).filter(Boolean);
       removeGhost = () => ghosts.forEach((g) => { try { g(); } catch (_) { /* ignore */ } });
 
       if (!banner.el) ui.notifications.info(`${title} — ${hint}`);
@@ -238,8 +260,8 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       }
 
       if (flowCancelled) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
-      if (doneClicked && captured.length >= 2) break;     // finish with the floors placed
-      if (goBack) { captured.pop(); continue; }            // re-place the previous floor
+      if (doneClicked && captured.length >= minFloors) break;   // finish with the floors placed
+      if (goBack) { captured.pop(); continue; }                  // re-place the previous floor
       if (!rect) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
 
       captured.push({ rect, levelId });
@@ -251,22 +273,40 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
     return;
   }
 
-  if (captured.length < 2) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
+  if (captured.length < minFloors) { ui.notifications.info(t("DAT.Stairs.Cancelled")); cleanup(); return; }
 
   try {
-    const regions = await createLinkedStairs({
-      scene, mode, label, twoWay,
-      segments: captured.map((c) => ({ x: c.rect.x, y: c.rect.y, width: c.rect.width, height: c.rect.height, levelId: c.levelId }))
-    });
-    const count = regions?.length ?? 0;
-    const allSameLevel = captured.every((c) => c.levelId === captured[0].levelId);
-    ui.notifications.info(t(allSameLevel ? "DAT.Stairs.CreatedTeleport" : "DAT.Stairs.Created", { count }));
+    const segments = captured.map((c) => ({ x: c.rect.x, y: c.rect.y, width: c.rect.width, height: c.rect.height, levelId: c.levelId }));
+    if (existingLinkId) {
+      // Add the new floor(s) to the existing link and re-mesh (existing + new).
+      const added = await addPortalsToLink(scene, existingLinkId, segments, { twoWay });
+      ui.notifications.info(t("DAT.Stairs.FloorsAdded", { count: added?.length ?? 0 }));
+    } else {
+      const regions = await createLinkedStairs({ scene, mode, label, twoWay, segments });
+      const count = regions?.length ?? 0;
+      const allSameLevel = captured.every((c) => c.levelId === captured[0].levelId);
+      ui.notifications.info(t(allSameLevel ? "DAT.Stairs.CreatedTeleport" : "DAT.Stairs.Created", { count }));
+    }
   } catch (err) {
     ui.notifications.error(t("DAT.Stairs.CreateFailed", { error: err.message }));
     console.error(err);
   } finally {
     cleanup();
   }
+}
+
+/**
+ * Add another floor to an EXISTING stair/portal link: the same guided placement
+ * as a new stair, but seeded from the link (inherits its type/label, ghosts its
+ * current footprints for alignment) and finishing after a single new floor.
+ *
+ * @param {Scene} scene
+ * @param {string} linkId
+ * @returns {Promise<void>}
+ */
+export async function addFloorToLink(scene = canvas?.scene, linkId) {
+  if (!linkId) { ui.notifications.warn(t("DAT.Stairs.GoneLink")); return; }
+  return startAddStairs(scene, { existingLinkId: linkId });
 }
 
 /**

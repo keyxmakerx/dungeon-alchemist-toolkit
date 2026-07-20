@@ -94,6 +94,7 @@
           {{#if this.legacy}}
           <button type="button" class="da-link-btn" data-action="adoptStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AdoptStair"}}"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
           {{else}}
+          <button type="button" class="da-link-btn" data-action="addFloorStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AddFloorStair"}}"><i class="fa-solid fa-layer-group"></i></button>
           <button type="button" class="da-link-btn" data-action="editStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.EditStair"}}"><i class="fa-solid fa-pen"></i></button>
           {{/if}}
           <button type="button" class="da-link-btn da-link-btn--danger" data-action="removeStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.RemoveStair"}}"><i class="fa-solid fa-trash"></i></button>

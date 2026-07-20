@@ -1,6 +1,21 @@
-# 0.5.2
+# 0.5.3
 
-Multi-level stairs, clearer transit prompts, and a tidier GM canvas overlay.
+Follow-ups on the stairs overlay + multi-level editing.
+
+## [Added]
+- **Add a floor to an existing stair.** Each stair in the Level Manager's Stairs tab
+  now has an **Add floor** button: it runs the guided placement for one (or more) new
+  floors, ghosting the stair's current footprints so you can line the new stop up with
+  the stack, then re-meshes the whole link — no need to rebuild the stair from scratch.
+- **Editable player-facing floor names.** The stair **Edit** dialog now lists each
+  floor with an editable name — that's exactly what players read in the "which floor?"
+  picker (e.g. rename a stop to "Floor 1", "Cellar", "Rooftop").
+
+## [Fixed]
+- **The connecting line now actually fades off the Regions layer.** The overlay was
+  checking the wrong signal for "am I editing"; it now uses `canvas.activeLayer`, so
+  the same-floor line is bold on the Regions tool and near-transparent during play.
+  (A one-time console line reports the state, to make it verifiable.)
 
 ## [Added]
 - **Multi-level staircases.** The stairs wizard is no longer limited to two floors:

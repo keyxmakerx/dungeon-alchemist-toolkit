@@ -31,6 +31,8 @@ let _drawDebounce = null;
 let _raf = null;
 /** One-time diagnostic so live testing can confirm the drag hook actually fires. */
 let _refreshSeen = false;
+/** Last-logged Regions-layer-active state, so the editing-mode log fires only on change. */
+let _lastEditingLogged = null;
 /** Hover/select info-card (a DOM element) + the region id it's pinned to (selected). */
 let _card = null;
 let _pinnedId = null;
@@ -130,9 +132,16 @@ export function drawPortalOverlay() {
     // Regions layer, but clutters normal play — so fade it to a faint hint
     // elsewhere. The portal rings/icons and the ↑/↓ cross-floor badges stay full
     // (they mark where the portals are, and — for stacked stairs — which way they go).
-    const editing = !!(canvas?.regions?.active);
-    const lineAlpha = editing ? 0.4 : 0.06;
-    const lineLabelAlpha = editing ? 0.5 : 0.1;
+    // Use canvas.activeLayer (the canonical "which layer is active" signal), with the
+    // layer's own `active` flag as a fallback for builds where they differ.
+    const regionsLayer = canvas?.regions;
+    const editing = (canvas?.activeLayer && regionsLayer && canvas.activeLayer === regionsLayer) || !!regionsLayer?.active;
+    if (editing !== _lastEditingLogged) {
+      _lastEditingLogged = editing;
+      try { console.debug(`[DA Toolkit] stair overlay: Regions layer ${editing ? "ACTIVE — connecting lines bold" : "inactive — connecting lines faded"} (activeLayer=${canvas?.activeLayer?.name ?? "?"})`); } catch (_) { /* ignore */ }
+    }
+    const lineAlpha = editing ? 0.4 : 0.05;
+    const lineLabelAlpha = editing ? 0.5 : 0.08;
 
     // Level elevation + name maps, computed once (the overlay redraws often).
     const levels = getSceneLevels(scene);
