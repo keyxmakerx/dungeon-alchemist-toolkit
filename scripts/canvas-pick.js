@@ -10,23 +10,17 @@
 let _pickInProgress = false;
 
 /**
- * Let the user place a region by clicking or dragging on the canvas, resolving
- * with a normalized world-space rectangle `{x, y, width, height}` (top-left
- * origin, positive dimensions). A plain click (drag travel under the
- * screen-pixel threshold) yields a 1-grid-square rectangle centered on the
- * press point; a drag yields the swept rectangle. Pressing Escape — or aborting
- * the optional `signal` — rejects with `"cancelled"`.
+ * Let the user place a region by clicking (1-grid square) or dragging (swept
+ * rectangle); resolves with a normalized world-space rectangle
+ * `{x, y, width, height}`. Escape or aborting `signal` rejects with `"cancelled"`.
  *
- * Listeners attach in capture phase so they pre-empt Foundry's own canvas
- * pointer handlers (avoiding token selection/pan); `mousemove`/`mouseup` live
- * on `document` so a release outside the canvas still resolves. The live
- * preview is a `PIXI.Graphics` (PIXI v7 immediate-mode API) on `canvas.controls`,
- * non-interactive, destroyed by the single idempotent `cleanup()` run on every
- * exit path.
+ * Listeners attach in capture phase to pre-empt Foundry's own canvas pointer
+ * handlers; `mousemove`/`mouseup` live on `document` so a release outside the
+ * canvas still resolves. The preview `PIXI.Graphics` is destroyed by the
+ * single idempotent `cleanup()` run on every exit path.
  *
  * @param {object} [opts]
- * @param {AbortSignal} [opts.signal]  Abort to cancel the placement externally
- *                                     (e.g. a Cancel button or scene teardown).
+ * @param {AbortSignal} [opts.signal]  Abort to cancel the placement externally.
  * @returns {Promise<{x:number, y:number, width:number, height:number}>}
  */
 export function pickCanvasRectangle({ signal } = {}) {

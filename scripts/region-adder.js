@@ -22,15 +22,10 @@ import { requireGM } from "./util.js";
 export { getSceneLevels, getCurrentLevelId, pickCanvasRectangle };
 
 /**
- * Create a single multi-level Region on the given Scene at the given world
- * coordinates, bound to every level in `levelIds` and carrying a default
- * `changeLevel` behavior. The shape is a 1-grid-square rectangle centered on
- * the click.
- *
- * Why one region (not many): Foundry's Region.levels field is a Set of level
- * ids — one document is enough to make the shape appear on every requested
- * floor, and the `changeLevel` behavior lets the user pick a destination at
- * runtime from that set.
+ * Create a single multi-level Region bound to every level in `levelIds`, with
+ * a default `changeLevel` behavior. One region (not many): Region.levels is a
+ * Set of level ids, so one document appears on every requested floor and
+ * `changeLevel` lets the user pick a destination from that set at runtime.
  *
  * @param {object} params
  * @param {Scene} params.scene

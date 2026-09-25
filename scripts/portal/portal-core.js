@@ -1,20 +1,17 @@
 /**
  * Stair / Portal core — data model + create-and-link logic.
  *
- * Design (see docs/STAIRS-PORTAL-DESIGN.md): a "portal" is a native v14 Region
- * carrying a native **`teleportToken`** Region Behavior. We build ON that native
- * behavior — it does the actual move (cross-level, cross-position), supports
- * multiple `destinations`, a `choice` confirm dialog, and `revealed` destination
- * names. This module supplies the gap native lacks: a one-call way to create a
- * *linked pair* (or group) of portal regions and wire their `destinations` at
- * each other, plus a `flags` stamp so the Manager and the GM overlay can find and
- * group them.
+ * A "portal" is a native v14 Region carrying a native `teleportToken` Region
+ * Behavior (see docs/STAIRS-PORTAL-DESIGN.md); native does the actual move,
+ * multi-destination support and confirm dialog. This module adds a one-call
+ * way to create a linked pair/group of portal regions, wire their
+ * `destinations` at each other, and stamp a `flags` marker so the Manager and
+ * GM overlay can find and group them.
  *
- * Live-v14 schema: `buildTeleportBehavior` reads the running world's behavior
- * schema (`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and emits the
- * fields it declares — preferring v14's canonical plural `destinations` (array of
- * Region UUIDs) over the deprecated singular `destination`, plus `choice`/`revealed`
- * when present. This matches the module's feature-detect-and-degrade approach.
+ * `buildTeleportBehavior` reads the live behavior schema
+ * (`CONFIG.RegionBehavior.dataModels.teleportToken.schema`) and emits only the
+ * fields it declares, preferring plural `destinations` over the deprecated
+ * `destination` — feature-detect-and-degrade.
  */
 
 import { MODULE_ID, PORTAL_FLAG, FLOOR_HEIGHT } from "../constants.js";
@@ -245,16 +242,11 @@ function buildPortalRegionData({ scene, x, y, width, height, levelId, flag, colo
 }
 
 /**
- * Build a native `teleportToken` RegionBehavior source.
- *
- * Reads the LIVE behavior schema and emits the field names the running world
- * defines, preferring v14's canonical plural `destinations` (array of Region
- * UUIDs) over the deprecated singular `destination`, plus `choice`/`revealed`
- * when present. If the schema can't be read we emit a superset (plural first); a
- * DataModel drops keys it doesn't declare, so extra keys are harmless.
- *
- * With >1 destination, `choice` is forced on so native doesn't silently land on a
- * random target. The singular-only fallback wires just the first destination.
+ * Build a native `teleportToken` RegionBehavior source. Reads the live schema
+ * and emits only the fields the running world declares (a DataModel drops
+ * keys it doesn't know, so a superset fallback is harmless if the schema
+ * can't be read). With >1 destination, `choice` is forced on so native
+ * doesn't silently land on a random target.
  *
  * @param {object} p
  * @param {string[]} p.destinations  Region UUID(s) to teleport into (first = primary).
