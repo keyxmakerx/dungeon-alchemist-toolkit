@@ -1,5 +1,5 @@
 /**
- * Native Scene-Level write helpers (P2 — dashboard floor editing).
+ * Native Scene-Level write helpers for dashboard floor editing.
  *
  * Every edit goes through `scene.update({ levels })` with the COMPLETE levels
  * array — only the target fields changed — so a wholesale array replace can never

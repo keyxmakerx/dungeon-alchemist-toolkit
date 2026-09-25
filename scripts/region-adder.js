@@ -8,10 +8,10 @@
  * wraps the bookkeeping needed to build that payload from a click position and a
  * set of target level IDs.
  *
- * NOTE (Phase 0): the shared helpers `getSceneLevels`/`getCurrentLevelId`
- * (→ `levels.js`) and `pickCanvasRectangle` (→ `canvas-pick.js`) were relocated so
- * the portal system can use them without importing this legacy tool. They are
- * re-exported here so existing importers keep working until this file is retired.
+ * The shared helpers `getSceneLevels`/`getCurrentLevelId` (→ `levels.js`) and
+ * `pickCanvasRectangle` (→ `canvas-pick.js`) live elsewhere so the portal system
+ * can use them without importing this legacy tool; they are re-exported here so
+ * existing importers of this module keep working.
  */
 
 import { getSceneLevels, getCurrentLevelId } from "./levels.js";

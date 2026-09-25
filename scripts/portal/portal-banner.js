@@ -2,10 +2,9 @@
  * Persistent on-canvas placement banner for the stairs/portal wizard.
  *
  * A plain DOM element (robust — no canvas/PIXI dependency) pinned over the board
- * with step text, an in-flow floor picker, and Back/Cancel buttons. Replaces the
- * transient `ui.notifications` toasts the old place-then-link flow used. Level
- * option labels are set via `textContent` (never innerHTML) so a DA-derived level
- * name can't inject markup.
+ * with step text, an in-flow floor picker, and Back/Cancel buttons. Level option
+ * labels are set via `textContent` (never innerHTML) so a DA-derived level name
+ * can't inject markup.
  */
 
 import { t } from "../util.js";

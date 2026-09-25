@@ -1,9 +1,9 @@
 /**
  * Canvas rectangle picker shared by the legacy region tool and the stairs/portal
- * wizard. Relocated from `region-adder.js` (Phase 0). Lets the user click (drops a
- * 1-grid square) or drag (sweeps a rectangle) to place a region footprint, with a
- * live preview; Escape — or an external AbortSignal — cancels. `region-adder.js`
- * re-exports it for backward compatibility.
+ * wizard. Lets the user click (drops a 1-grid square) or drag (sweeps a
+ * rectangle) to place a region footprint, with a live preview; Escape — or an
+ * external AbortSignal — cancels. `region-adder.js` re-exports it for backward
+ * compatibility.
  */
 
 /** Guards against two concurrent canvas placements double-binding listeners. */
@@ -17,15 +17,12 @@ let _pickInProgress = false;
  * press point; a drag yields the swept rectangle. Pressing Escape — or aborting
  * the optional `signal` — rejects with `"cancelled"`.
  *
- * Implementation notes:
- * - Listeners are attached in capture phase so they pre-empt Foundry's own
- *   canvas pointer handlers (avoiding token selection / pan). `mousemove` and
- *   `mouseup` live on `document` so a release outside the canvas still resolves.
- * - The live preview is a `PIXI.Graphics` added to `canvas.controls`, whose
- *   children are in world coordinates (matching `canvas.mousePosition`); it is
- *   non-interactive (`eventMode = "none"`) and destroyed by the single
- *   idempotent `cleanup()` run on every exit path (commit, Escape, abort, error).
- * - v14 uses PIXI v7, so the preview uses the immediate-mode Graphics API.
+ * Listeners attach in capture phase so they pre-empt Foundry's own canvas
+ * pointer handlers (avoiding token selection/pan); `mousemove`/`mouseup` live
+ * on `document` so a release outside the canvas still resolves. The live
+ * preview is a `PIXI.Graphics` (PIXI v7 immediate-mode API) on `canvas.controls`,
+ * non-interactive, destroyed by the single idempotent `cleanup()` run on every
+ * exit path.
  *
  * @param {object} [opts]
  * @param {AbortSignal} [opts.signal]  Abort to cancel the placement externally
