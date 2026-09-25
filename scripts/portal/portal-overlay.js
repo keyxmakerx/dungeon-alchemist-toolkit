@@ -1,20 +1,13 @@
 /**
- * GM-only portal overlay — shows, on the current level, what every stair / portal /
- * trap connects to:
- *   • a per-link coloured ring + mode icon on each portal end (each linked pair has
- *     its own stable colour);
- *   • a translucent connecting line + midpoint label between two ends on the SAME
- *     floor;
- *   • a "↑ Floor"/"↓ Floor" badge on an end whose partner is on ANOTHER floor (incl.
- *     the straight up/down case where both ends share x,y — the far end is simply on
- *     a different level, so it gets a badge instead of a line).
+ * GM-only portal overlay — on the current level, shows what every stair / portal
+ * / trap connects to: a coloured ring + mode icon on each end (stable colour per
+ * link), a connecting line + midpoint label for two ends on the same floor, and
+ * a ↑/↓ "Floor" badge when the partner is on another level.
  *
- * Pure presentation: no document writes, GM-only, redrawn on an event (never per
- * frame, except a RAF-coalesced redraw while a portal is being dragged).
- *
- * ⚠️ Live-v14 notes: draws into `canvas.controls` with PIXI v7. Everything is
- * feature-detected and try/catch-wrapped, so a failure degrades to "no overlay"
- * rather than breaking the canvas.
+ * Pure presentation: no document writes, GM-only, redrawn on events (plus a
+ * RAF-coalesced redraw while a portal is being dragged). Draws into
+ * `canvas.controls` with PIXI v7; everything is feature-detected and
+ * try/catch-wrapped so a failure degrades to "no overlay".
  */
 
 import { getPortalLinkGroups, regionCenter, regionLevelId, regionLevelIds, getPortalFlag } from "./portal-core.js";

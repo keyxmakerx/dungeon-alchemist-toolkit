@@ -1,14 +1,10 @@
 /**
- * Shared canvas label/badge builder (PIXI v7).
+ * Shared canvas label/badge builder (PIXI v7): a `PIXI.Text` over a rounded-rect
+ * background, anchored above its centre point. Used by both the player overlay's
+ * "Stairs" hint and the GM overlay's midpoint labels/floor badges.
  *
- * One implementation behind both overlays: the player overlay's sight-gated "Stairs"
- * hint and the GM overlay's same-floor midpoint labels + cross-floor ↑/↓ badges. A
- * `PIXI.Text` over a rounded-rect background, anchored above its centre point.
- *
- * Pure presentation — no Foundry document access. The caller adds the returned
- * container to its own layer (it's positioned at `center`). Self-degrading: if a PIXI
- * surface ever changes (e.g. a v7→v8 Text/Graphics API break), it returns an empty
- * container so the caller's addChild stays safe rather than throwing.
+ * Pure presentation, no document access. Self-degrading: on any PIXI API break
+ * it returns an empty container so the caller's addChild stays safe.
  *
  * @param {{x:number,y:number}} center  World coords the label sits above.
  * @param {string} text
