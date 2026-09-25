@@ -1,12 +1,10 @@
 /**
- * Dungeon Alchemist Toolkit hub — a small, reliable launcher window that gathers
- * the toolkit's actions (Import / Add Stairs / Stairs Manager) in one place.
+ * Dungeon Alchemist Toolkit hub — a launcher window gathering the toolkit's
+ * actions (Import / Add Stairs / Stairs Manager) in one place.
  *
- * This is the "always works" entry point: plain ApplicationV2 (no canvas/control
- * dependencies), reachable from the module API, `DA.open()`, and a Module Settings
- * menu. The native scene-controls group (see controls.js) is a guarded
- * enhancement layered on top; if it misbehaves on a given v14 build, this hub
- * still gives the GM a clickable way in.
+ * A plain ApplicationV2 with no canvas/control dependencies, reachable from
+ * the module API, `DA.open()`, and a Module Settings menu, so it works even
+ * if the scene-controls group (controls.js) misbehaves on a given v14 build.
  */
 
 import { MODULE_ID } from "./constants.js";

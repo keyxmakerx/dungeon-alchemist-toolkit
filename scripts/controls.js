@@ -2,11 +2,11 @@
  * Toolkit entry points — a GM-only Module Settings menu and a single safe toolbar
  * button, both opening the Level Manager dashboard.
  *
- * IMPORTANT: we add ONE tool to an existing native control group, never a custom
- * GROUP. A custom scene-controls group caused a regression that broke native
- * floor selection (fixed in 0.3.1), and v14 custom groups have open core bugs.
- * The toolbar tool is behind a client setting (default on) so it can be turned
- * off without uninstalling; the Settings menu + the `DA` API always work.
+ * IMPORTANT: add ONE tool to an existing native control group, never a custom
+ * group — a custom scene-controls group breaks native floor selection, and v14
+ * custom groups have open core bugs. The toolbar tool is behind a client setting
+ * (default on) so it can be turned off without uninstalling; the Settings menu
+ * and the `DA` API always work.
  */
 
 import { MODULE_ID } from "./constants.js";

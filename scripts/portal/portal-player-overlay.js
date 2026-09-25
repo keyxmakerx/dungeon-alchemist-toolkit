@@ -4,11 +4,11 @@
  * For a *player* (not the GM), shows a "Stairs" hint label over a portal when
  * their own token can SEE it (line of sight) and is within range. The label is a
  * HINT, not an actuator: using a stair is the native behavior — walk the token
- * onto the region and the native teleportToken fires its confirm + move. (A
- * client-side token move issued by a player is unreliable and violates GM
- * authority, so it was removed; a real GM-relayed click-to-use is deferred to a
- * future phase behind a confirmed transport.) Hidden (trap) regions never show a
- * label.
+ * onto the region and the native teleportToken fires its confirm + move. A
+ * client-side token move issued by a player would violate GM authority, so the
+ * label never moves the token itself.
+ * TODO(keyxmakerx/dungeon-alchemist-toolkit#18): let a player click the label to
+ * use the stair, via a GM relay. Hidden (trap) regions never show a label.
  *
  * ⚠️ Live-v14 / best-effort: leans on `canvas.visibility.testVisibility` (LOS),
  * `canvas.interface`/`canvas.controls` (a PIXI parent), PIXI v7 Graphics, and

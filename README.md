@@ -44,9 +44,22 @@ The dialog is tabbed. Open it from the **Dungeon Alchemist** group in the scene 
 
 ### Stairs & Portals (`DA.AddStairs()`, `DA.StairsManager()`)
 
-Create linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them; modes are **stairs** (cross-level, with a confirm), **teleport** (same map), and **trap** (hidden, silent, one-way). The **Stairs Manager** lists every link on the scene to find, edit, or delete it. `DA.LinkStairs()` links two Regions you've already selected.
+Create linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them; modes are **stairs** (cross-level, with a confirm), **teleport** (same map), and **trap** (hidden, silent, one-way). A link can span more than two floors (place a footprint on each floor, then Done) — every floor interconnects, so stepping onto any floor's stair offers every other connected floor. The **Stairs Manager** lists every link on the scene to find, edit, or delete it.
 
-> **Status:** built on native v14 and hardened, but pending live confirmation in a running v14 world (there is no Foundry runtime in CI). See `docs/STAIRS-TESTING.md`.
+- `DA.AddStairs()` — prompts for type/label/two-way, then guides you through placing the entrance and exit.
+- `DA.AddStairs({ mode: "stairs"|"teleport"|"trap", label, twoWay })` — same flow, skipping the prompt.
+- `DA.LinkStairs()` — links the two currently-selected Regions into a pair.
+- `DA.AddFloorToLink(linkId)` — adds another floor to an existing stair/portal link.
+- `DA.StairsManager()` — opens the manager.
+- Sidebar buttons: **DA Add Stairs / Portal**, **DA Stairs Manager**.
+
+A legacy region made by the old `DA.AddRegion()` tool still shows up in the Level Manager and Stairs Manager (tagged **legacy**), with actions to **Adopt** it into a managed link or **Remove** it.
+
+The player-facing overlay is a sight-gated **hint label only** — clicking it does not move the token; using a stair is always the native walk-in teleport. A real click-to-use is tracked as issue #18.
+
+Two behaviors you may see are Foundry itself, not a bug here: two linked teleport regions can ping-pong a token back and forth (native handles re-entry; report it if you see a loop), and the GM's own view doesn't always auto-follow a token's cross-level teleport.
+
+> **Status:** built on native v14 and hardened, but pending live confirmation in a running v14 world (there is no Foundry runtime in CI) — tracked as issue #17. See `docs/STAIRS-PORTAL-DESIGN.md` for the design and `docs/ARCHITECTURE.md` for how it's built.
 
 ### Region Tool (`DA.AddRegion()`) — legacy
 
@@ -57,11 +70,13 @@ Create linked transit between (or within) levels, built on Foundry v14's native 
 Open the toolkit from the **Dungeon Alchemist** scene-controls group, the **hub** (`DA.open()` or the *Open the Toolkit* button in Module Settings), or call the API directly. The API lives at `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to `DA` for convenience:
 
 ```js
-DA.open();           // unified hub (Import / Add Stairs / Stairs Manager)
-DA.Importer();       // open the importer dialog
-DA.AddStairs();      // place a linked entrance + exit
-DA.StairsManager();  // browse/edit this scene's stairs
-DA.AddRegion();      // legacy multi-level changeLevel region
+DA.open();              // unified hub (Import / Add Stairs / Stairs Manager)
+DA.Importer();          // open the importer dialog
+DA.AddStairs();         // place a linked entrance + exit
+DA.LinkStairs();        // link two selected Regions into a pair
+DA.AddFloorToLink(id);  // add another floor to an existing stair/portal link
+DA.StairsManager();     // browse/edit this scene's stairs
+DA.AddRegion();         // legacy multi-level changeLevel region
 ```
 
 Select the folder exported by Dungeon Alchemist, configure the tabs, and click Import. The module creates a single Scene with one native Scene Level per floor, with walls, doors, and lights already bound to their respective levels.
@@ -74,7 +89,7 @@ Install via the Foundry VTT Module browser or use this manifest link:
 https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/main/module.json
 ```
 
-> **Note:** the stairs/portal system is built on native v14 and hardened, but still pending a live v14 confirmation — see `docs/STAIRS-TESTING.md`.
+> **Note:** the stairs/portal system is built on native v14 and hardened, but still pending a live v14 confirmation — see the Stairs & Portals section above.
 
 # ⚖️ Credits & License
 

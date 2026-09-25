@@ -20,10 +20,9 @@ export function t(key, data) {
 
 /**
  * Gate a GM-only action. Returns `true` if the current user is a GM; otherwise
- * shows a warning toast and returns `false`. Every public write entry point
- * (import, scene/region creation, portal linking) calls this first so a non-GM
- * gets a clear, early message instead of a confusing mid-pipeline permission
- * error (STRATEGY §3.6: GM-gate every scene write).
+ * shows a warning toast and returns `false`. Call this first in any public
+ * write entry point (import, scene/region creation, portal linking) so a
+ * non-GM gets a clear, early message instead of a mid-pipeline permission error.
  *
  * @param {string} [msg]  Optional custom (already-localized) warning message.
  * @returns {boolean}

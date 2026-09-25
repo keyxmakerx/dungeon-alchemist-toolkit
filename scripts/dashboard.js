@@ -3,11 +3,8 @@
  *
  * Left: the scene's floors (native Scene Levels), top-floor first; click a floor
  * to view it. Right: the selected floor's details + the stairs/portals that
- * connect it. Import and stairs editing fold in over later phases; this phase is
- * the read-only home + the entry point. Built entirely on native data
- * (`scene.levels`, portal-flagged Regions) — no parallel data model.
- *
- * Replaces the old hub (scripts/hub.js, retired later).
+ * connect it. Built entirely on native data (`scene.levels`, portal-flagged
+ * Regions) — no parallel data model.
  */
 
 import { MODULE_ID } from "./constants.js";
@@ -327,8 +324,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Link-aware editor: rename the whole link, change its type/two-way, or fall back
    * to the native region sheet for shape/elevation — writing through the shared
-   * bindPortals path so both ends stay consistent. (Lifted from the standalone
-   * Stairs Manager, now folded into this tab.)
+   * bindPortals path so both ends stay consistent.
    */
   static async #onEditStair(_event, target) {
     const linkId = target?.dataset?.linkId;
@@ -469,8 +465,8 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  // Import still opens the dedicated importer window (folded into this tab next);
-  // Add Stairs runs the on-canvas guided placement.
+  // TODO(keyxmakerx/dungeon-alchemist-toolkit#13): fold the standalone importer
+  // window into this tab. Add Stairs runs the on-canvas guided placement.
   static #onImport() { game.modules.get(MODULE_ID).api.Importer(); }
   static #onAddStairs() { game.modules.get(MODULE_ID).api.AddStairs(); }
 }

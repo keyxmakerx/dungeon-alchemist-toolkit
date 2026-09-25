@@ -1,8 +1,7 @@
 /**
  * Shared floor-row building blocks used by the importer and the Level Manager
- * dashboard. Extracted from importer-dialog.js (Phase 0) so the dashboard can
- * reuse the thumbnail builder without depending on that dialog — which is retired
- * once import folds into the dashboard.
+ * dashboard, kept separate from importer-dialog.js so the dashboard can reuse
+ * the thumbnail builder without depending on that dialog.
  */
 
 import { isVideoPath } from "./da-importer.js";

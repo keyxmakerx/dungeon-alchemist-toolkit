@@ -212,8 +212,7 @@ export function mapName(pairs, folderPath = "") {
  * Distinct DA map base-names among floors carrying the CANONICAL `-_NN` suffix
  * (kebab-normalized so case/accents don't create false positives). More than one
  * entry is the genuine "two DA maps dumped in one folder" signature. Loose or
- * custom-named floors never count — a folder is contractually one map — so this
- * no longer false-positives on alternative numbering or custom per-floor names.
+ * custom-named floors never count, since a folder is contractually one map.
  *
  * @param {{base?:string, canonical?:boolean}[]} pairs
  * @returns {string[]} Unique normalized canonical base-names (may be empty).
