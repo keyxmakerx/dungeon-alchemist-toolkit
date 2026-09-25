@@ -1,18 +1,18 @@
 <div>
   {{#unless hasScene}}
-    <p class="da-region-empty">No active scene. Open a scene that has Levels and try again.</p>
+    <p class="da-region-empty">{{localize "DAT.Region.EmptyScene"}}</p>
   {{else}}
 
     <div class="da-field-card">
       <p class="da-region-info">
-        <strong>Scene:</strong> {{sceneName}}<br/>
-        <strong>Total Levels:</strong> {{levelCount}}
+        <strong>{{localize "DAT.Region.SceneLabel"}}</strong> {{sceneName}}<br/>
+        <strong>{{localize "DAT.Region.TotalLevelsLabel"}}</strong> {{levelCount}}
       </p>
     </div>
 
     <div class="da-field-card">
       <div class="form-group da-inline-group">
-        <label>Starting Level</label>
+        <label>{{localize "DAT.Region.StartingLevel"}}</label>
         <div class="form-fields">
           <select name="startingLevelId">
             {{#each levels}}
@@ -21,39 +21,39 @@
           </select>
         </div>
       </div>
-      <p class="hint">The level the user is currently on (the staircase origin).</p>
+      <p class="hint">{{localize "DAT.Region.StartingLevelHint"}}</p>
     </div>
 
     <div class="da-field-card">
       <div class="form-group da-inline-group">
-        <label>Levels Up</label>
+        <label>{{localize "DAT.Region.LevelsUp"}}</label>
         <div class="form-fields">
           <input type="number" name="upCount" min="0" max="{{maxUp}}" value="0" />
         </div>
       </div>
-      <p class="hint">How many levels above the starting level the region must also appear on.</p>
+      <p class="hint">{{localize "DAT.Region.LevelsUpHint"}}</p>
     </div>
 
     <div class="da-field-card">
       <div class="form-group da-inline-group">
-        <label>Levels Down</label>
+        <label>{{localize "DAT.Region.LevelsDown"}}</label>
         <div class="form-fields">
           <input type="number" name="downCount" min="0" max="{{maxDown}}" value="0" />
         </div>
       </div>
-      <p class="hint">How many levels below the starting level the region must also appear on.</p>
+      <p class="hint">{{localize "DAT.Region.LevelsDownHint"}}</p>
     </div>
 
     <div class="da-field-card">
-      <p><strong>Region will appear on:</strong></p>
+      <p><strong>{{localize "DAT.Region.WillAppearOn"}}</strong></p>
       <ul class="da-region-target-list"></ul>
     </div>
 
-    <p class="hint da-region-place-hint">Click to drop a one-square region, or drag to draw a larger footprint. Press Escape to cancel.</p>
+    <p class="hint da-region-place-hint">{{localize "DAT.Region.PlaceHint"}}</p>
 
     <footer class="sheet-footer flexrow">
       <button type="button" data-action="pickLocation">
-        <i class="fas fa-crosshairs"></i> Place on Canvas
+        <i class="fas fa-crosshairs"></i> {{localize "DAT.Region.PlaceBtn"}}
       </button>
     </footer>
 
