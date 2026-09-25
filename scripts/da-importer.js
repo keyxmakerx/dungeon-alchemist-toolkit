@@ -24,6 +24,8 @@ import { collectFloorPairs, distinctMapStems, mapName, isVideoPath, toKebab } fr
 // from here so their imports are unchanged (floor-rows.js → isVideoPath,
 // importer-dialog.js → collectFloorPairs).
 export { isVideoPath, collectFloorPairs, distinctMapStems };
+// _senseEnum is pure and unit-tested directly (test/da-importer-sense.test.mjs).
+export { _senseEnum };
 
 /**
  * Ensure a unique subdirectory exists under `worlds/<worldId>/da-imported/`.
@@ -356,7 +358,10 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
 /**
  * Translate a DA 0/1/2 restriction flag into a v14 wall SENSE enum
  * (sight/sound/light). DA uses a compact {0:none, 1:normal, 2:limited} scheme;
- * v14 `WALL_SENSE_TYPES` use {NONE:0, LIMITED:10, NORMAL:20, ...}.
+ * v14 `WALL_SENSE_TYPES` use {NONE:0, LIMITED:10, NORMAL:20, ...}. A value
+ * outside that scheme falls back to NONE with a console warning, so an
+ * export value the importer doesn't understand is visible, not silently
+ * dropped.
  *
  * @param {number} v
  * @returns {number}
@@ -364,6 +369,7 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
 function _senseEnum(v) {
   if (v === 2) return 10;
   if (v === 1) return 20;
+  if (v !== 0) console.warn(`[DA Importer] unknown wall sense value ${v}; treating as no restriction (0).`);
   return 0;
 }
 

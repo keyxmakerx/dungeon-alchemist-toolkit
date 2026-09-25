@@ -2,18 +2,18 @@
 
   <div class="da-browse">
     <div class="da-browse-bar">
-      <label class="da-browse-src">Source
+      <label class="da-browse-src">{{localize "DAT.Importer.Source"}}
         <select name="sourceSelect">
-          <option value="data">User Data</option>
-          <option value="public">Core Data</option>
+          <option value="data">{{localize "DAT.Importer.SourceUser"}}</option>
+          <option value="public">{{localize "DAT.Importer.SourceCore"}}</option>
         </select>
       </label>
-      <button type="button" class="da-browse-up" data-action="browseUp" data-tooltip="Up one folder"><i class="fa-solid fa-arrow-up"></i></button>
+      <button type="button" class="da-browse-up" data-action="browseUp" data-tooltip="{{localize "DAT.Importer.UpFolder"}}"><i class="fa-solid fa-arrow-up"></i></button>
       <span class="da-browse-path">/ (root)</span>
       <span class="da-dash-spacer"></span>
-      <button type="button" class="da-browse-syspick" data-action="browse" data-tooltip="Jump to a folder with the system file picker"><i class="fa-solid fa-folder-open"></i></button>
+      <button type="button" class="da-browse-syspick" data-action="browse" data-tooltip="{{localize "DAT.Importer.SysPick"}}"><i class="fa-solid fa-folder-open"></i></button>
     </div>
-    <p class="hint">Open the folder Dungeon Alchemist exported — its floors are detected and offered for import automatically as you browse.</p>
+    <p class="hint">{{localize "DAT.Importer.BrowseHint"}}</p>
     <div class="da-browse-dirs"></div>
     <p class="da-browse-status"></p>
     <input type="hidden" name="folder" value="" />
@@ -22,56 +22,56 @@
 
   <div class="da-import-floors">
     <div class="da-import-floors-hd">
-      <span class="da-import-floors-title">Floors<span class="da-import-count"></span></span>
+      <span class="da-import-floors-title">{{localize "DAT.Importer.FloorsTitle"}}<span class="da-import-count"></span></span>
       <span class="da-dash-spacer"></span>
-      <label class="da-import-fh" data-tooltip="Default height applied to every floor; fine-tune individual rows below.">Height
+      <label class="da-import-fh" data-tooltip="{{localize "DAT.Importer.HeightHint"}}">{{localize "DAT.Importer.HeightLabel"}}
         <input type="number" name="uniformFloorHeight" min="1" step="1" value="10" />
       </label>
-      <label class="da-adv-toggle"><input type="checkbox" name="showAdvanced" /> Advanced</label>
-      <button type="button" class="da-info-icon" aria-label="What do the advanced columns do?">&#9432;</button>
+      <label class="da-adv-toggle"><input type="checkbox" name="showAdvanced" /> {{localize "DAT.Importer.AdvancedLabel"}}</label>
+      <button type="button" class="da-info-icon" aria-label="{{localize "DAT.Importer.AdvancedAria"}}">&#9432;</button>
     </div>
 
     <div class="da-adv-help" hidden>
-      <p><strong>Advanced columns — most maps don't need any of these.</strong></p>
+      <p><strong>{{localize "DAT.Importer.AdvHelpIntro"}}</strong></p>
       <ul>
-        <li><strong>Roof</strong> — tick this <em>only</em> on a floor that is actually a roof/ceiling sitting on top of the floor below. It then shows only while you're on that lower floor, positioned automatically (you set no numbers). <em>Not sure if you have a roof floor? Then you don't — leave Roof off on every row.</em></li>
-        <li><strong>Start (★)</strong> — which floor players see first when the scene opens. Defaults to the bottom floor.</li>
+        <li>{{{localize "DAT.Importer.AdvHelpRoof"}}}</li>
+        <li>{{{localize "DAT.Importer.AdvHelpStart"}}}</li>
       </ul>
     </div>
 
     <div class="da-levels-list"></div>
     <p class="da-import-orphans" hidden></p>
-    <p class="hint da-import-droptip" hidden>Drag a row by its <strong>#</strong> to reorder · hover a thumbnail for its filename and size · each name is pre-filled from the original file.</p>
+    <p class="hint da-import-droptip" hidden>{{{localize "DAT.Importer.DropTip"}}}</p>
   </div>
 
   <details class="da-import-adv">
-    <summary>Scene &amp; door options</summary>
+    <summary>{{localize "DAT.Importer.SceneDoorOptions"}}</summary>
     <div class="da-import-adv-body">
 
       <div class="da-field-card">
         <div class="form-group da-inline-group">
-          <label>Background Color</label>
+          <label>{{localize "DAT.Importer.BackgroundColor"}}</label>
           <div class="form-fields">
             <input type="color" name="backgroundColor" value="#000000" />
           </div>
         </div>
-        <p class="hint">Scene background color applied to all levels.</p>
+        <p class="hint">{{localize "DAT.Importer.BackgroundColorHint"}}</p>
       </div>
 
       <div class="da-field-card">
         <div class="form-group da-inline-group">
-          <label>Grid Opacity</label>
+          <label>{{localize "DAT.Importer.GridOpacity"}}</label>
           <div class="form-fields">
             <input type="range" name="gridAlpha" min="0" max="1" step="0.05" value="0" />
             <span class="range-value">0.00</span>
           </div>
         </div>
-        <p class="hint">Opacity of the grid overlay (0 = invisible, 1 = fully visible).</p>
+        <p class="hint">{{localize "DAT.Importer.GridOpacityHint"}}</p>
       </div>
 
       <div class="da-field-card">
         <div class="form-group da-inline-group da-toggle-group">
-          <label for="copyImages">Copy Media to World</label>
+          <label for="copyImages">{{localize "DAT.Importer.CopyMedia"}}</label>
           <div class="form-fields">
             <label class="da-toggle">
               <input type="checkbox" id="copyImages" name="copyImages" />
@@ -81,22 +81,17 @@
             </label>
           </div>
         </div>
-        <p class="hint">
-          When enabled, copies all floor media into
-          <code>worlds/&lt;world&gt;/da-imported/&lt;map-name&gt;/</code>
-          and points the scene to the copies.
-          Files are renamed to kebab-case.
-        </p>
+        <p class="hint">{{{localize "DAT.Importer.CopyMediaHint"}}}</p>
       </div>
 
       <hr class="da-section-divider" />
 
       <div class="da-field-card">
         <div class="form-group da-inline-group">
-          <label>Door Texture</label>
+          <label>{{localize "DAT.Importer.DoorTexture"}}</label>
           <div class="form-fields da-door-row">
             <select name="doorTexture">
-              <option value="">None</option>
+              <option value="">{{localize "DAT.Importer.DoorTextureNone"}}</option>
               <option value="canvas/doors/small/Door_Metal_Gray_E1_1x1.webp">Metal Gray E1</option>
               <option value="canvas/doors/small/Door_Metal_Rusty_D_1x1.webp">Metal Rusty D</option>
               <option value="canvas/doors/small/Door_Metal_Rusty_F_1x1.webp">Metal Rusty F</option>
@@ -126,15 +121,15 @@
             <img class="da-door-preview" src="" alt="" hidden />
           </div>
         </div>
-        <p class="hint">Applied to all doors (wall type "Door") using a swing animation. Select "None" to leave doors untextured.</p>
+        <p class="hint">{{localize "DAT.Importer.DoorTextureHint"}}</p>
       </div>
 
       <div class="da-field-card">
         <div class="form-group da-inline-group">
-          <label>Door Sound</label>
+          <label>{{localize "DAT.Importer.DoorSound"}}</label>
           <div class="form-fields da-door-row">
             <select name="doorSound">
-              <option value="">None</option>
+              <option value="">{{localize "DAT.Importer.DoorSoundNone"}}</option>
               <option value="futuristicFast">Futuristic (Fast)</option>
               <option value="futuristicHydraulic">Futuristic (Hydraulic)</option>
               <option value="futuristicForcefield">Futuristic (Forcefield)</option>
@@ -157,12 +152,12 @@
               <option value="woodCreaky">Wood (Creaky)</option>
               <option value="woodHeavy">Wood (Heavy)</option>
             </select>
-            <button type="button" data-action="previewSound" aria-label="Preview sound">
+            <button type="button" data-action="previewSound" aria-label="{{localize "DAT.Importer.PreviewSoundAria"}}">
               <i class="fas fa-play"></i>
             </button>
           </div>
         </div>
-        <p class="hint">Sound played when opening or closing imported doors. Select "None" to use the Foundry default.</p>
+        <p class="hint">{{localize "DAT.Importer.DoorSoundHint"}}</p>
       </div>
 
     </div>
@@ -170,7 +165,7 @@
 
   <footer class="sheet-footer flexrow">
     <button type="button" data-action="import" disabled>
-      <i class="fas fa-file-import"></i> <span class="da-import-btn-label">Import</span>
+      <i class="fas fa-file-import"></i> <span class="da-import-btn-label">{{localize "DAT.Importer.ImportBtn"}}</span>
     </button>
   </footer>
 </div>

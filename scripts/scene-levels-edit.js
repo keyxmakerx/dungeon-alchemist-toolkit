@@ -17,6 +17,7 @@
  */
 
 import { getSceneLevels } from "./levels.js";
+import { requireGM } from "./util.js";
 
 /**
  * Serialize all level-array writes. Two edits fired close together (e.g. an input
@@ -53,12 +54,14 @@ function levelToObject(level) {
  * @param {Scene} scene
  * @param {object[]} nextLevels  The complete array (every floor, plain objects).
  * @param {string} context       Short label for diagnostics.
+ * @param {object} [extra]       Extra fields to merge into the same `scene.update`
+ *   (e.g. a reassigned `initialLevel`), so they commit atomically with the levels.
  * @returns {Promise<boolean>}   true if the write was applied (verification only warns).
  */
-async function writeAndVerify(scene, nextLevels, context) {
+async function writeAndVerify(scene, nextLevels, context, extra = {}) {
   const sentIds = new Set(nextLevels.map((l) => l._id));
   try {
-    await scene.update({ levels: nextLevels });
+    await scene.update({ levels: nextLevels, ...extra });
   } catch (err) {
     console.error(`[DA Toolkit] scene.update(levels) failed (${context}):`, err);
     ui.notifications?.error?.(`Floor update failed: ${err.message}`);
@@ -96,6 +99,7 @@ async function writeAndVerify(scene, nextLevels, context) {
  */
 export function updateLevel(scene, levelId, patch = {}) {
   return enqueue(async () => {
+    if (!requireGM()) return false;
     if (!scene || !levelId) return false;
     const levels = getSceneLevels(scene).map(levelToObject);
     const target = levels.find((l) => l._id === levelId);
@@ -133,6 +137,7 @@ export function updateLevel(scene, levelId, patch = {}) {
  */
 export function moveLevel(scene, levelId, dir) {
   return enqueue(async () => {
+    if (!requireGM()) return false;
     if (!scene || !levelId) return false;
     const ascending = getSceneLevels(scene).map(levelToObject);   // bottom-first
     const i = ascending.findIndex((l) => l._id === levelId);
@@ -157,6 +162,7 @@ export function moveLevel(scene, levelId, dir) {
  */
 export function setStartLevel(scene, levelId) {
   return enqueue(async () => {
+    if (!requireGM()) return false;
     if (!scene || !levelId) return false;
     if (!getSceneLevels(scene).some((l) => l._id === levelId)) return false;
     if (scene.initialLevel === levelId) return true;             // idempotent
@@ -184,6 +190,7 @@ export function setStartLevel(scene, levelId) {
  */
 export function replaceLevelImage(scene, levelId, src) {
   return enqueue(async () => {
+    if (!requireGM()) return false;
     if (!scene || !levelId || !src) return false;
     const levels = getSceneLevels(scene).map(levelToObject);
     const target = levels.find((l) => l._id === levelId);
@@ -203,6 +210,7 @@ export function replaceLevelImage(scene, levelId, src) {
  */
 export function addLevel(scene, { name, src, height = 10 } = {}) {
   return enqueue(async () => {
+    if (!requireGM()) return false;
     if (!scene) return false;
     const levels = getSceneLevels(scene).map(levelToObject);   // bottom-first
     const sample = levels[levels.length - 1];
@@ -239,6 +247,7 @@ export function addLevel(scene, { name, src, height = 10 } = {}) {
  */
 export function removeLevel(scene, levelId) {
   return enqueue(async () => {
+    if (!requireGM()) return false;
     if (!scene || !levelId) return false;
     const levels = getSceneLevels(scene).map(levelToObject);
     if (levels.length <= 1) {
@@ -247,7 +256,11 @@ export function removeLevel(scene, levelId) {
     }
     const next = levels.filter((l) => l._id !== levelId);
     if (next.length === levels.length) return false;   // id not found
-    return writeAndVerify(scene, next, `removeLevel ${levelId}`);
+    // The start floor (scene.initialLevel) must always point at a surviving
+    // level; if we just removed it, hand the role to the new bottom floor in
+    // this same update so the scene is never left pointing at a deleted id.
+    const extra = scene.initialLevel === levelId ? { initialLevel: next[0]._id } : {};
+    return writeAndVerify(scene, next, `removeLevel ${levelId}`, extra);
   });
 }
 

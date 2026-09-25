@@ -270,7 +270,8 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       type: "imagevideo",
       current: "",
       callback: async (path) => {
-        const name = path ? decodeURIComponent(path.split("/").pop().replace(/\.[^.]+$/, "")) : undefined;
+        if (!path) return;   // dialog closed/cancelled with no pick — don't append a blank floor
+        const name = decodeURIComponent(path.split("/").pop().replace(/\.[^.]+$/, ""));
         const newId = await addLevel(scene, { src: path, name });
         if (newId) this._selectedId = newId;
         this.render();
