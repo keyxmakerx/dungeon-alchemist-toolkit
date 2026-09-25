@@ -1,7 +1,12 @@
-# Stairs / Portal System — Design Spec
+# Stairs / Portal System — Design
 
-**Status:** Proposal, awaiting sign-off. Nothing here is built yet.
-**Supersedes:** the current "DA Add Stairs / Elevator" tool (`region-adder*.js`).
+**Status:** Built (phases P1–P4 below); this is the design this system was
+built to, kept as the reference for its data model and hooks. §13's file
+layout is the original proposal, not the shipped file names — see
+`docs/ARCHITECTURE.md` for how the shipped code is actually organized.
+Live-verification is tracked as issue #17.
+**Supersedes:** the legacy "DA Add Region" tool (`region-adder*.js`), which
+still exists for old scenes — see `DA.AddRegion()`.
 
 **Decisions locked with the maintainer:**
 - **Design doc first**, then build in phases. Document *everything* — file layout, hooks,
@@ -25,7 +30,7 @@
 2. The unifying idea
 3. Prior art — what others do, and how we align
 4. Architecture — build on native, add the layer
-5. Creation & linking (wizard + direct connect)
+5. Creation & linking (both paths)
 6. Editing & the Stairs Manager
 7. Player-facing overlay (sight-gated, clickable) + trigger modes
 8. Runtime flow
@@ -34,9 +39,9 @@
 11. Performance on huge maps
 12. Data model
 13. Implementation map — files, hooks, registration
-14. Open questions / live-v14 verification
+14. Live-v14 verification
 15. Migration
-16. Phased build plan
+16. Build phases (for reference)
 17. Out of scope
 
 ---
@@ -108,7 +113,7 @@ stance on each:
 
 | v14 native feature | Our stance |
 |---|---|
-| **Scene Levels** + a **Levels tab in Scene Config** (add/edit elevation ranges, sublevel visibility) | **Build on** — stairs target native Levels. ⚠️ **Conflict to resolve:** the importer's separate **"DA Edit Levels" dialog (0.0.14) now overlaps the native Levels tab.** Decide: retire it, or trim it to import-time conveniences native lacks (filename-naming, drag-reorder, roof shortcut, media preview). Tracked separately from this doc. |
+| **Scene Levels** + a **Levels tab in Scene Config** (add/edit elevation ranges, sublevel visibility) | **Build on** — stairs target native Levels. The importer's separate "DA Edit Levels" dialog was retired; per-level naming/elevation/roof/start/visibility editing is deferred to this native tab (via the Level Manager's "Open Scene Config" link). |
 | **Level-aware Scene Navigation** (`viewScene` / `viewLevel` / `cycleLevel`) | **Use these** for the Manager's "switch to level" and post-teleport view changes. No custom level switching. |
 | **Regions V2** (Templates → Regions; new UI, Behaviors, token-attach; **Ring/Emanation** shapes) | **Build on** — portals are Regions; support native shapes (not rectangle-only); our behavior registers into the **native Behaviors UI** (coexist, no parallel system). |
 | **Native behaviors:** `TeleportToken` (`destinations`+`revealed`), `ChangeLevel`, `DefineSurface`, `ExecuteScript/Macro`, `ModifyMovementCost`, `ToggleBehavior` | **`TeleportToken`** = movement engine (different-location stairs). **`ChangeLevel`** = optional same-spot floor change. **`DefineSurface`** already blocks areas — we don't reinvent it. |
@@ -157,6 +162,12 @@ Editing is first-class, served three ways:
 ---
 
 ## 7. Player-facing overlay (sight-gated, clickable) + trigger modes
+
+**As shipped, the player overlay is a hint only, not an actuator:** clicking it
+does not move the token. A client-side move issued by a player is unreliable
+and bypasses GM authority, so it was dropped; using a stair is always the
+native walk-in `teleportToken` firing on region entry. A real GM-relayed
+click-to-use is issue #18. The rest of this section is the original design.
 
 Per-portal toggle **`showToPlayers`** ("Show player a window"). When on, the stair gets a
 player overlay that:
@@ -290,43 +301,42 @@ player clicks overlay ──► (request) ──► GM: validate ▸ cooldown �
 
 ---
 
-## 14. Open questions / live-v14 verification
+## 14. Live-v14 verification
 
-Resolved by research:
-- ✅ `DialogV2.query(user, type, config)` — native GM→player prompt, no dependency.
-- ✅ Native **`teleportToken`** behavior with `destinations` + `revealed` (multi-dest, name
-  reveal, player choice) is the movement engine; Stairways-style click-to-use is the player UX.
+`teleportToken`'s live schema, the level-view API, the LOS test and the
+click-to-use nudge are all feature-detected in the shipped code (see
+`docs/ARCHITECTURE.md` → Stairs / portals), so a wrong guess degrades to "no
+overlay" rather than a crash. Recording these checks as confirmed, or running
+the ones still missing, is tracked as issue #17. If a check fails, report:
 
-Confirm on a live v14 world during P1–P2:
-1. `teleportToken` **schema** in the target 14.x (`destinations`, `revealed`, how it sets
-   the **destination level/elevation**) — decides native-move vs our fallback move.
-2. Whether a **second custom behavior** can coexist on the same region as `teleportToken`
-   (for confirm/flags) or if a **region flag** is cleaner.
-3. Exact **token-enter event** + payload; **active-level-change hook**; the property for the
-   currently-viewed level.
-4. **Sight/LOS API** for the player overlay (`canvas.visibility.testVisibility` vs a
-   sight-polygon collision test).
-5. `token.update` teleport-vs-animated flag; elevation band edges (inclusive/exclusive).
+1. **`teleportToken` schema** — if the move/confirm never fires, dump
+   `Object.keys(CONFIG.RegionBehavior.dataModels.teleportToken.schema.fields)`
+   (`portal-core.js`'s `buildTeleportBehavior` reads this live and emits only
+   the fields it declares).
+2. **Level-view API** — if select-&-pan doesn't switch floors, or the GM link
+   line shows on the wrong level, name the live v14 "view this level" call
+   (`levels.js`'s `viewLevel`).
+3. **LOS test** — if player stair labels show through walls or never show,
+   it's `portal-player-overlay.js`'s `hasSight`
+   (`canvas.visibility.testVisibility`).
+4. **Click-to-use nudge** — if clicking the label doesn't trigger the move,
+   the region-enter semantics differ from what `usePortal` assumes.
 
 ## 15. Migration
 
-Old-tool regions keep working. Optional one-click **"Convert to portal"** (mint `linkId`,
-attach `daPortal`, set native `destinations`) — low priority, post-MVP.
+Old-tool (legacy `changeLevel`) regions keep working and are surfaced
+alongside portals in the Level Manager and Stairs Manager, tagged **legacy**,
+with **Adopt** (mint a `linkId`, make it a managed portal, keep its transit
+behavior) and **Remove** actions.
 
-## 16. Phased build plan
+## 16. Build phases (for reference)
 
-- **P1 — Foundation & editing.** Verify native `teleportToken` (§14.1); register the
-  `daPortal` companion + sheet; repoint creation to native teleport + `daPortal`. Refactor
-  helpers into `levels.js`/`canvas-pick.js`. "Click to edit" via native + sheet.
-- **P2 — Linking + Manager.** Wizard **and** direct click-connect; bidirectional `destinations`
-  sync; **Stairs Manager** (schematic thumbnails). Covers teleport, stairs, traps (silent).
-- **P3 — DM link overlay.** Translucent same-layer lines + cross-layer markers, GM-only.
-- **P4 — Player overlay.** Sight-gated, hover-label + **click-to-use**, performance-gated;
-  optional `DialogV2.query` confirm + multi-destination picker (native `revealed`).
-- **P5 — Polish.** Rendered Manager thumbnails, relative-position landing, migration,
-  settings, docs/ARCHITECTURE refresh.
-
-Each phase is independently testable and shippable.
+Built in order: **P1** foundation (native `teleportToken` + the `daPortal`
+flag stamp) → **P2** linking + Stairs Manager (wizard, direct connect,
+multi-floor mesh links) → **P3** the GM-only link overlay → **P4** the
+sight-gated player hint overlay. Remaining polish (rendered Manager
+thumbnails, relative-position landing, a real click-to-use via GM relay) is
+issue #18.
 
 ## 17. Out of scope (for now)
 
