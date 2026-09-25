@@ -39,6 +39,8 @@ build step and no CI.
   `ui.notifications` toast; a failed enhancement (an overlay, a canvas draw)
   degrades to "missing," never a crash.
 - Localize user-facing strings through `lang/en.json` / `t()`, not literals.
+- Comments say why, briefly: the rule the code obeys and why. No plan or audit
+  IDs, dates or history in comments; those go in the PR description.
 
 ## Working with the maintainer
 
