@@ -13,16 +13,16 @@ build step and no CI.
 - `templates/` — Handlebars templates for the dialogs and panels.
 - `styles/module.css` — all module CSS (widgets don't use separate files).
 - `lang/en.json` — all user-facing strings; add new keys here, not literals.
-- `test/floor-grouping.test.mjs` — the only automated test, covering the pure
-  folder→floor grouping contract.
+- `test/*.test.mjs` — the automated tests, for the pure logic: folder→floor
+  grouping and the wall-sense mapping.
 - `assets/demo/` — sample Dungeon Alchemist export used in the README preview.
 
 ## Checking a change
 
 - `node --check scripts/<file>.js` (and any file you touched) — there is no
   Foundry runtime available outside a live world, so this is the syntax gate.
-- `node test/floor-grouping.test.mjs` — must stay green; it's the regression
-  guard for folder→floor parsing.
+- `for f in test/*.test.mjs; do node "$f"; done` — must stay green; they guard
+  folder→floor parsing and the wall-sense mapping.
 - Everything else is a live check in a running Foundry v14 world (see
   `docs/STAIRS-PORTAL-DESIGN.md` for the stairs system's live-verify list).
 
