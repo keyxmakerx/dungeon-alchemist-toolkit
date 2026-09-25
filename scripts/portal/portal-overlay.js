@@ -305,11 +305,13 @@ function ensureCard() {
   return _card;
 }
 
-/** Show the hover/select card for a stored portal end. No-op if it can't be placed. */
+/** Show the hover/select card for a stored portal end. Hides it if it can't be placed. */
 function showCard(info) {
   if (!info) return;
   const pos = worldToClient(info.center);
-  if (!pos) return;   // can't resolve screen coords -> skip (degrade to no card)
+  // Can't resolve screen coords (e.g. its region point panned off screen) — hide
+  // rather than leave a stale card floating at its last known position.
+  if (!pos) { hideCard(); return; }
   const card = ensureCard();
   card.replaceChildren();
   const title = document.createElement("div");
@@ -375,7 +377,13 @@ export function registerPortalOverlayHooks() {
       if (hovered) {
         const info = _cardInfo.get(id);
         if (info) showCard(info);
-      } else if (!_pinnedId) {
+      } else if (_pinnedId) {
+        // Hovering a different region temporarily swapped the card's content;
+        // on hover-out restore the pinned (selected) region's card instead of
+        // leaving the hovered region's info showing or hiding it outright.
+        const info = _cardInfo.get(_pinnedId);
+        if (info) showCard(info); else hideCard();
+      } else {
         hideCard();
       }
     } catch (_) { /* ignore */ }
