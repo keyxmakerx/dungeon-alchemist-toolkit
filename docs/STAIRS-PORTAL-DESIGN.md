@@ -1,17 +1,14 @@
 # Stairs / Portal System — Design
 
-**Status:** Built (phases P1–P4 below); this is the design this system was
-built to, kept as the reference for its data model and hooks. §13's file
-layout is the original proposal, not the shipped file names — see
-`docs/ARCHITECTURE.md` for how the shipped code is actually organized.
-Live-verification is tracked as issue #17.
+**Status:** Built. This is the design the system was built to, kept as the
+reference for its data model and the reasoning behind it. File names, hooks
+and the public API are in `docs/ARCHITECTURE.md`. Live verification is
+issue #17; later polish (a real click-to-use, rendered Manager thumbnails)
+is issue #18.
 **Supersedes:** the legacy "DA Add Region" tool (`region-adder*.js`), which
 still exists for old scenes — see `DA.AddRegion()`.
 
 **Decisions locked with the maintainer:**
-- **Design doc first**, then build in phases. Document *everything* — file layout, hooks,
-  registration points — so neither of us re-investigates the code (this doc is the single
-  reference; see §13 Implementation Map).
 - **Follow community norms / go native where the majority does.** Research (§3) shows the
   modern, widely-used path is **native v14 Region behaviors** (`teleportToken`) on **native
   Levels**. We build on those and add the UX layer they lack.
@@ -38,11 +35,8 @@ still exists for old scenes — see `DA.AddRegion()`.
 10. Transport — researched decision
 11. Performance on huge maps
 12. Data model
-13. Implementation map — files, hooks, registration
-14. Live-v14 verification
-15. Migration
-16. Build phases (for reference)
-17. Out of scope
+13. Live-v14 verification
+14. Migration
 
 ---
 
@@ -98,13 +92,13 @@ clickable overlay, DM link line, traps/confirm).
 2. **Stairs Manager** (§6) — a per-scene, all-levels thumbnail index to find/select/edit.
 3. **Sight-gated clickable player overlay** (§7) — the headline player feature.
 4. **DM-only link line** overlay (§9).
-5. **Trigger modes + confirm/trap** (§7) — click-to-use (verified), auto-on-enter
+5. **Trigger modes + confirm/trap** (§7) — click-to-use (shipped as a hint only, see §7), auto-on-enter
    (seamless/trap), optional `DialogV2.query` confirm.
 
 **Resilience:** if the live-v14 `teleportToken` can't set the destination *level/elevation*
 the way we need, we fall back to our **own GM-side move** (a thin `daPortal` companion
 behavior) — which we already need for click-to-use anyway. So we're covered either way (§8,
-§14).
+§13).
 
 ### 4.1 v14 native landscape — build on, don't duplicate
 
@@ -259,54 +253,11 @@ Player shape visibility = the Region's native `hidden`.
 
 ---
 
-## 13. Implementation map — files, hooks, registration
+## 13. Live-v14 verification
 
-### File layout (proposed)
-```
-scripts/
-  main.js              # init/ready hooks; register behavior/flags, settings, API, controls
-  levels.js            # getSceneLevels, getCurrentLevelId (moved out of region-adder.js)
-  portal/
-    behavior.js        # daPortal companion (behavior or flag schema) + sync to native teleportToken
-    runtime.js         # click-to-use path: validate ▸ DialogV2.query ▸ GM move ▸ guards
-    linking.js         # wizard + direct click-connect; bind = mint linkId, anchors, sync destinations
-    manager.js         # Stairs Manager panel + thumbnail builder
-    overlay-dm.js      # GM link lines / cross-level markers (PIXI, hook-driven)
-    overlay-player.js  # sight-gated clickable player overlay (PIXI, debounced)
-    canvas-pick.js     # pickCanvasRectangle (moved out of region-adder.js)
-templates/  portal-link.hbs, portal-manager.hbs
-styles/module.css      # + .da-portal-* rules
-```
-(`region-adder*.js` retired; helpers move to `levels.js` / `canvas-pick.js`.)
-
-### Hooks & registration — where each lives
-
-| Hook / registration | File | Purpose |
-|---|---|---|
-| `Hooks.once("init")` | `main.js` | Register the `daPortal` companion (behavior type *or* flag schema); module settings; `game.modules.get(ID).api` (`AddStairs`, `LinkStairs`, `StairsManager`). |
-| `Hooks.once("ready")` | `main.js` | Expose `window.DA`. |
-| `Hooks.on("getSceneControlButtons")` | `main.js` | Add a "Stairs / Portal" tool group (Add / Link / Manage) to canvas controls. |
-| native `teleportToken` + (opt) `daPortal` `static events` | `portal/behavior.js` | Auto-on-enter move; optional confirm wrap. |
-| `Hooks.on("canvasReady")` | `overlay-dm.js`, `overlay-player.js` | Build DM link overlay; start player-overlay watcher. |
-| active-level-change hook *(name TBD §14)* | `overlay-dm.js`, `overlay-player.js` | Rebuild overlays for the newly-viewed level. |
-| `createRegion`/`updateRegion`/`deleteRegion` | `overlay-dm.js`, `manager.js` | Refresh overlay + manager on portal changes. |
-| `refreshToken`/`updateToken`/`controlToken` | `overlay-player.js` | Drive the sight-gated overlay (debounced). |
-| `renderRegionBehaviorConfig` | `behavior.js` | Inject shortcut / "re-link" button. |
-
-### Data flow (click-to-use)
-```
-player clicks overlay ──► (request) ──► GM: validate ▸ cooldown ▸ confirm?(DialogV2.query)
-        └─► GM token.update({x,y,elevation}) ▸ set portalCooldown
-```
-
----
-
-## 14. Live-v14 verification
-
-`teleportToken`'s live schema, the level-view API, the LOS test and the
-click-to-use nudge are all feature-detected in the shipped code (see
-`docs/ARCHITECTURE.md` → Stairs / portals), so a wrong guess degrades to "no
-overlay" rather than a crash. Recording these checks as confirmed, or running
+`teleportToken`'s live schema, the level-view API and the LOS test are all
+feature-detected in the shipped code (see `docs/ARCHITECTURE.md` → Stairs /
+portals), so a wrong guess degrades to "no overlay" rather than a crash. Recording these checks as confirmed, or running
 the ones still missing, is tracked as issue #17. If a check fails, report:
 
 1. **`teleportToken` schema** — if the move/confirm never fires, dump
@@ -319,26 +270,10 @@ the ones still missing, is tracked as issue #17. If a check fails, report:
 3. **LOS test** — if player stair labels show through walls or never show,
    it's `portal-player-overlay.js`'s `hasSight`
    (`canvas.visibility.testVisibility`).
-4. **Click-to-use nudge** — if clicking the label doesn't trigger the move,
-   the region-enter semantics differ from what `usePortal` assumes.
 
-## 15. Migration
+## 14. Migration
 
 Old-tool (legacy `changeLevel`) regions keep working and are surfaced
 alongside portals in the Level Manager and Stairs Manager, tagged **legacy**,
 with **Adopt** (mint a `linkId`, make it a managed portal, keep its transit
 behavior) and **Remove** actions.
-
-## 16. Build phases (for reference)
-
-Built in order: **P1** foundation (native `teleportToken` + the `daPortal`
-flag stamp) → **P2** linking + Stairs Manager (wizard, direct connect,
-multi-floor mesh links) → **P3** the GM-only link overlay → **P4** the
-sight-gated player hint overlay. Remaining polish (rendered Manager
-thumbnails, relative-position landing, a real click-to-use via GM relay) is
-issue #18.
-
-## 17. Out of scope (for now)
-
-Locked/keyed stairs, per-token permissions, animated transitions, sound effects on use.
-Easy to add on this foundation — flag any to pull forward.

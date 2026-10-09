@@ -22,9 +22,17 @@ This module reads all pairs in a folder, parses each JSON for wall, door, and li
 
 ## Features
 
+### Level Manager (`DA.open()`)
+
+The toolkit's home window. Open it from the **Dungeon Alchemist — Level Manager** button the module adds to the Token controls (left canvas toolbar; turn it off with the *Toolbar button* client setting), from the *Open the Toolkit* button in Module Settings, or with `DA.open()`. GM only.
+
+- **Floors** tab: the scene's floors, top first. Select one to view it, rename it, change its elevations, move it up or down, set it as the start floor, swap its image, or add and remove floors; the stairs that touch the selected floor are listed beside it. Cross-level visibility and anything else beyond that stays in Foundry's own Levels tab (the *Open Scene Config (Levels)* shortcut).
+- **Import** tab: opens the importer below.
+- **Stairs** tab: every stair and portal on the scene, with go-to, edit, add-a-floor, adopt (legacy regions) and remove actions, and an **Add Stairs / Portal** button.
+
 ### Importer Dialog (`DA.Importer()`)
 
-The dialog is tabbed. Open it from the **Dungeon Alchemist** group in the scene controls (left canvas toolbar), from the toolkit **hub** (the *Open the Toolkit* button in Module Settings, or `DA.open()`), or by calling `DA.Importer()` from a macro.
+The dialog is tabbed. Open it from the Level Manager's **Import** tab, or call `DA.Importer()` from a macro.
 
 #### Scene Defaults tab
 - **Copy Media to World** toggle (off by default): copies all floor media (images *and* videos) into `worlds/<your-world>/da-imported/<map-name>/` and renames them to `kebab-case` for portability.
@@ -51,7 +59,8 @@ Create linked transit between (or within) levels, built on Foundry v14's native 
 - `DA.LinkStairs()` — links the two currently-selected Regions into a pair.
 - `DA.AddFloorToLink(linkId)` — adds another floor to an existing stair/portal link.
 - `DA.StairsManager()` — opens the manager.
-- Sidebar buttons: **DA Add Stairs / Portal**, **DA Stairs Manager**.
+
+The Level Manager's **Stairs** tab has the same add and manage actions.
 
 A legacy region made by the old `DA.AddRegion()` tool still shows up in the Level Manager and Stairs Manager (tagged **legacy**), with actions to **Adopt** it into a managed link or **Remove** it.
 
@@ -67,10 +76,10 @@ Two behaviors you may see are Foundry itself, not a bug here: two linked telepor
 
 ## Usage
 
-Open the toolkit from the **Dungeon Alchemist** scene-controls group, the **hub** (`DA.open()` or the *Open the Toolkit* button in Module Settings), or call the API directly. The API lives at `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to `DA` for convenience:
+Open the Level Manager (see above), or call the API directly. The API lives at `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to `DA` for convenience:
 
 ```js
-DA.open();              // unified hub (Import / Add Stairs / Stairs Manager)
+DA.open();              // Level Manager (Floors / Import / Stairs)
 DA.Importer();          // open the importer dialog
 DA.AddStairs();         // place a linked entrance + exit
 DA.LinkStairs();        // link two selected Regions into a pair
@@ -88,8 +97,6 @@ Install via the Foundry VTT Module browser or use this manifest link:
 ```javascript
 https://raw.githubusercontent.com/keyxmakerx/dungeon-alchemist-toolkit/refs/heads/main/module.json
 ```
-
-> **Note:** the stairs/portal system is built on native v14 and hardened, but still pending a live v14 confirmation — see the Stairs & Portals section above.
 
 # ⚖️ Credits & License
 
