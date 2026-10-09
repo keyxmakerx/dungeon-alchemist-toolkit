@@ -38,8 +38,8 @@ warns and no-ops for a non-GM caller.
 
 - `floor-grouping.js` — pure, Foundry-free parsing of a folder of DA export
   files into ordered floor pairs (`collectFloorPairs`, `mapName`,
-  `distinctMapStems`, `isVideoPath`, `toKebab`). This is the only module
-  covered by `test/floor-grouping.test.mjs`, run with plain `node`.
+  `distinctMapStems`, `isVideoPath`, `toKebab`). Covered by
+  `test/floor-grouping.test.mjs`, run with plain `node`.
 - `da-importer.js` — `importFolder(...)` turns those pairs into one
   `Scene.create` call: one native Scene Level per floor, with walls, doors
   and lights bound to their floor via each document's `levels` field. Copies
