@@ -44,7 +44,8 @@ warns and no-ops for a non-GM caller.
   `Scene.create` call: one native Scene Level per floor, with walls, doors
   and lights bound to their floor via each document's `levels` field. Copies
   media into `worlds/<world>/da-imported/<map>/` when the "Copy Media"
-  toggle is on.
+  toggle is on. Its pure `_senseEnum` (DA wall sense to Foundry enum) is
+  covered by `test/da-importer-sense.test.mjs`.
 - `importer-dialog.js` — the tabbed `DAImporterDialog` (ApplicationV2 +
   Handlebars) — Scene Defaults / Doors / Levels tabs, an in-window folder
   browser, per-floor thumbnails and elevation editing, and the large-media

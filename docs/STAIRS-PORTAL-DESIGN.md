@@ -133,6 +133,9 @@ destination level** → **place destination** → optionally add more destinatio
 levels (switch level between clicks). This is the "go to a level and click to connect one
 stair to another" ask; built to **snap and confirm each pick** so it isn't finicky.
 
+**As shipped, Path B is `DA.LinkStairs()`:** select the two Regions, then link
+them; there is no click-A-then-click-B toolbar mode.
+
 Both paths converge on the same bind step (mint/extend `linkId`, set anchors, sync native
 `destinations`). Reuses audited helpers: `pickCanvasRectangle`, `getSceneLevels`,
 `getCurrentLevelId`.
@@ -230,9 +233,14 @@ Event-driven redraw only — never per-frame (§11).
 
 ## 12. Data model
 
+**As shipped,** the companion is a region flag,
+`flags["dungeon-alchemist-toolkit"].portal`, holding only `{ linkId, label, mode,
+role }` (`role` is `entrance` or `destination`).
+Everything else here is carried by the native `teleportToken` behavior and the
+Region itself. The table below is the original design.
+
 Native `teleportToken` carries the `destinations`. We add a small **`daPortal`** companion
-(a custom region behavior *or* a region flag — decided in P1 by whichever the live-v14
-behavior allows alongside teleport) holding:
+(a custom region behavior *or* a region flag) holding:
 
 | Field | Type | Meaning |
 |---|---|---|
