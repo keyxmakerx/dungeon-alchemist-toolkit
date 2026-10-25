@@ -46,7 +46,8 @@ The dialog is tabbed. Open it from the Level Manager's **Import** tab, or call `
 #### Levels tab
 - One row per detected floor showing a thumbnail, an editable name, and editable **bottom / top elevation** inputs. Video floors show a paused first frame in the row and animate in the enlarged hover preview.
 - **Uniform floor height** field at the top: changing it recalculates all bottom/top inputs at once.
-- Per-level **Is Roof** toggle (available on every floor except the first): marks that level as a roof so it renders only when the floor directly below it is active.
+- Rows can be dragged to reorder.
+- **Advanced** toggle: shows a per-level **Roof** checkbox (not available on the bottom floor), which makes that level render only when the floor directly below it is active, and a **Start** button that picks the floor shown when the scene first loads. A floor whose filename contains "roof" is pre-marked as a roof.
 - **Large-media warning**: floors whose media exceeds Foundry's ~50 MB recommendation for animated maps are flagged with an amber outline (hover the thumbnail for the exact size), plus a summary notification. Sizes are probed for local sources only.
 - **Elevation validation**: import is blocked with a message if any level's bottom is ≥ its top.
 

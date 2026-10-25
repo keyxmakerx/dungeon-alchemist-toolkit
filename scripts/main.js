@@ -64,7 +64,7 @@ Hooks.once("init", () => {
 
   // GM-only translucent link overlay for same-level portal pairs + portal markers.
   registerPortalOverlayHooks();
-  // Player-facing sight-gated "Stairs" labels (hover + click to use).
+  // Player-facing sight-gated "Stairs" labels (a hover hint; clicking does nothing).
   registerPlayerPortalHooks();
 
   // Keep an open dashboard in sync when the active scene/canvas changes.
