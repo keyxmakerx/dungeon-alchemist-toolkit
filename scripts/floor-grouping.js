@@ -1,15 +1,12 @@
 /**
  * Dungeon Alchemist folder → floor grouping (pure, Foundry-free).
  *
- * Extracted from da-importer.js so the folder-parsing contract — "a folder is one
- * map; every image+JSON pair is one floor of it" — can be unit-tested in isolation
- * (see test/floor-grouping.test.mjs). Nothing here touches Foundry globals.
+ * Contract: a folder is one map; every media + `.json` pair is one floor.
+ * Nothing here touches Foundry globals (tested in test/floor-grouping.test.mjs).
  *
- * DA exports a multi-floor map as sibling pairs of one media file (image or video)
- * + a `.json`, one pair per floor. The canonical filename suffix is `-_NN`
- * ("Inn by the Lake-_03"), but exports/renames in the wild also use `_N`, `-N`,
- * " - N", or none — so ordering tolerates any trailing number, while the genuine
- * "two maps in one folder" warning keys strictly off the canonical suffix.
+ * The canonical suffix is `-_NN` ("Inn by the Lake-_03"); renamed exports also
+ * use `_N`, `-N`, " - N" or none, so ordering tolerates any trailing number
+ * while the "two maps in one folder" warning keys only off the canonical suffix.
  */
 
 // Canonical Dungeon Alchemist floor suffix: "-_NN" (e.g. "Inn by the Lake-_03").

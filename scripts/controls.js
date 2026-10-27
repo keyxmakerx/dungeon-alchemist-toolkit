@@ -2,11 +2,10 @@
  * Toolkit entry points — a GM-only Module Settings menu and a single safe toolbar
  * button, both opening the Level Manager dashboard.
  *
- * IMPORTANT: add ONE tool to an existing native control group, never a custom
- * group — a custom scene-controls group breaks native floor selection, and v14
- * custom groups have open core bugs. The toolbar tool is behind a client setting
- * (default on) so it can be turned off without uninstalling; the Settings menu
- * and the `DA` API always work.
+ * Add ONE tool to an existing native control group, never a custom group:
+ * custom scene-controls groups break native floor selection. The tool sits
+ * behind a client setting (default on); the Settings menu and `DA` API always
+ * work.
  */
 
 import { MODULE_ID } from "./constants.js";
@@ -14,7 +13,7 @@ import { DALevelManager } from "./dashboard.js";
 
 /** Register the settings menu, the toolbar-button setting, and the toolbar tool. */
 export function registerToolkitEntries() {
-  // Client toggle for the toolbar button — a recovery path if it ever misbehaves.
+  // Client toggle so the toolbar button can be turned off.
   try {
     game.settings.register(MODULE_ID, "toolbarButton", {
       name: "DAT.Settings.ToolbarButton.Name",
@@ -43,9 +42,7 @@ export function registerToolkitEntries() {
     console.warn("[DA Toolkit] settings-menu registration failed (non-fatal):", err);
   }
 
-  // Discoverable entry: a SINGLE tool added to an existing native control group
-  // (never a custom group). Fully guarded — if anything is off it no-ops and the
-  // Settings menu / API still open the dashboard.
+  // Single tool on an existing native group; any failure no-ops.
   Hooks.on("getSceneControlButtons", (controls) => {
     try {
       if (!game.user?.isGM) return;

@@ -1,17 +1,15 @@
 # Architecture
 
-How the module actually works, read from `scripts/`. Plain ES modules loaded
-via `module.json`'s single `esmodules` entry (`scripts/main.js`); no build
-step, no Foundry runtime in CI.
+Plain ES modules loaded via `module.json`'s single `esmodules` entry
+(`scripts/main.js`); no build step, no Foundry runtime in CI.
 
 ## Entry point
 
 `scripts/main.js` runs on Foundry's `init` hook:
 - registers the client-scoped `importerDefaults` setting (the importer
   dialog's remembered door/color/copy selections),
-- builds the public API object and assigns it to
-  `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to
-  `window.DA`,
+- builds the public API, assigned to `game.modules.get(MODULE_ID).api` and
+  aliased to `window.DA`,
 - calls `registerToolkitEntries()` (`controls.js`) for the scene-controls
   button and the Module Settings menu entry,
 - calls `registerPortalOverlayHooks()` and `registerPlayerPortalHooks()` to
@@ -23,16 +21,16 @@ step, no Foundry runtime in CI.
 
 | Call | Does |
 |---|---|
-| `DA.open()` | Opens the Level Manager dashboard (the toolkit's home). |
-| `DA.Importer()` | Opens the importer dialog directly. |
-| `DA.AddStairs()` / `DA.AddStairs({mode, label, twoWay})` | Guided stair/portal placement; with args, skips the type/label prompt. |
-| `DA.LinkStairs()` | Links two selected Regions into a portal pair. |
-| `DA.AddFloorToLink(linkId)` | Adds another floor to an existing stair link. |
-| `DA.StairsManager()` | Opens the Stairs Manager panel. |
-| `DA.AddRegion()` | Legacy multi-level `changeLevel` region tool (no toolbar button, still callable). |
+| `DA.open()` | Level Manager |
+| `DA.Importer()` | Importer dialog |
+| `DA.AddStairs()` / `DA.AddStairs({mode, label, twoWay})` | Guided placement; with args, skips the prompt |
+| `DA.LinkStairs()` | Links two selected Regions |
+| `DA.AddFloorToLink(linkId)` | Adds a floor to an existing link |
+| `DA.StairsManager()` | Stairs Manager |
+| `DA.AddRegion()` | Legacy `changeLevel` region tool (no toolbar button) |
 
-All write paths are GM-gated via `requireGM()` (`scripts/util.js`), which
-warns and no-ops for a non-GM caller.
+Write paths are GM-gated via `requireGM()` (`scripts/util.js`), which warns and
+no-ops for a non-GM caller.
 
 ## Importer (Dungeon Alchemist → Scene Levels)
 
@@ -55,10 +53,9 @@ warns and no-ops for a non-GM caller.
 
 ## Level Manager (`dashboard.js`)
 
-`DALevelManager` (ApplicationV2) is the toolkit's home window (`DA.open()`).
-Left: the scene's floors, top-first, click to view. Right: the selected
-floor's details and the stairs/portals attached to it. Three tabs: Floors,
-Import, Stairs.
+`DALevelManager` (ApplicationV2) is the home window (`DA.open()`): floors
+top-first on the left, the selected floor's details and its stairs on the
+right. Tabs: Floors, Import, Stairs.
 
 Floor edits go through `scene-levels-edit.js`, which always writes the
 **complete** `scene.levels` array back (`scene.update({ levels })`) and reads
@@ -95,8 +92,7 @@ supplies what native lacks — linking, a manager UI, and overlays.
   already-selected Regions directly; `addFloorToLink` extends an existing
   link to one more floor.
 - `portal-manager.js` — `DAStairsManager`, a per-scene panel listing every
-  portal link grouped by floor, with select-&-pan / edit / delete / add
-  actions. Complements, not duplicates, the native Placeables tab.
+  link with the level of each end; go-to / edit / adopt / remove / add.
 - `portal-overlay.js` — GM-only canvas overlay: a colored ring per portal
   end, a translucent line + label between two ends on the same floor, and a
   "↑/↓ Floor" badge when the partner is elsewhere. Redraws on events
@@ -109,9 +105,8 @@ supplies what native lacks — linking, a manager UI, and overlays.
   label/badge builder used by both overlays.
 
 Every overlay and canvas draw is feature-detected and try/catch-wrapped: a
-guess that doesn't match the running Foundry build degrades to "no overlay,"
-never a crash. See `docs/STAIRS-PORTAL-DESIGN.md` for the live-verification
-list still open (tracked as issue #17).
+mismatch with the running Foundry build degrades to "no overlay", never a
+crash. Open live checks (#17): `docs/STAIRS-PORTAL-DESIGN.md`.
 
 ## Legacy region tool
 
@@ -129,10 +124,9 @@ place a footprint) is shared by this tool and the stairs wizard.
 - `levels.js` — `getSceneLevels`, `getCurrentLevelId`, `viewLevel`: the only
   place that reads/switches the active Scene Level.
 - `util.js` — `t()` (i18n wrapper) and `requireGM()`.
-- `controls.js` — registers the scene-controls toolbar button (one tool
-  added to a native group, never a custom group — a custom group previously
-  broke native floor selection) and the Module Settings menu entry, both
-  opening the Level Manager.
+- `controls.js` — the toolbar button (one tool added to a native group, never
+  a custom group: custom groups break native floor selection) and the Module
+  Settings menu entry, both opening the Level Manager.
 
 ## Templates & styles
 
