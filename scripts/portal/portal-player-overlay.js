@@ -1,19 +1,17 @@
 /**
- * Player-facing portal labels (a sight-gated hint, Stairways-style).
+ * Player-facing portal labels: a "Stairs" hint over a portal when the player's
+ * own token has line of sight to it and is in range.
  *
- * For a *player* (not the GM), shows a "Stairs" hint label over a portal when
- * their own token can SEE it (line of sight) and is within range. The label is a
- * HINT, not an actuator: using a stair is the native behavior — walk the token
- * onto the region and the native teleportToken fires its confirm + move. A
- * client-side token move issued by a player would violate GM authority, so the
- * label never moves the token itself.
+ * A hint, not an actuator: using a stair is walking onto the region (native
+ * teleportToken). A client-side token move by a player would bypass GM
+ * authority, so the label never moves the token.
  * TODO(keyxmakerx/dungeon-alchemist-toolkit#18): let a player click the label to
  * use the stair, via a GM relay. Hidden (trap) regions never show a label.
  *
- * ⚠️ Live-v14 / best-effort: leans on `canvas.visibility.testVisibility` (LOS),
- * `canvas.interface`/`canvas.controls` (a PIXI parent), PIXI v7 Graphics, and
- * owned-token detection — all feature-detected and try/catch-wrapped. If a piece
- * isn't available it simply shows no label (native walk-in stairs still work).
+ * Unverified on live v14 (#17): relies on `canvas.visibility.testVisibility`,
+ * a PIXI parent (`canvas.interface`/`canvas.controls`) and owned-token
+ * detection, all feature-detected and try/catch-wrapped; if one is missing, no
+ * label shows and walk-in stairs still work.
  */
 
 import { getScenePortals, regionCenter, regionLevelId } from "./portal-core.js";

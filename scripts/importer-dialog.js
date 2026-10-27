@@ -381,7 +381,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
   /**
    * Probe each floor's media size via a HEAD request (Content-Length) and flag
-   * oversized floors in the Levels tab. Security/robustness measures:
+   * oversized floors in the Levels tab. Safeguards:
    * - Only LOCAL Foundry sources ("data"/"public") are probed; remote/absolute
    *   URLs (e.g. S3) are skipped to avoid issuing cross-origin requests / leaking
    *   the GM's address to arbitrary hosts.

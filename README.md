@@ -8,76 +8,66 @@ Foundry VTT v14 module that imports a Dungeon Alchemist multi-level export and c
 
 # How it Works
 
-Dungeon Alchemist exports multi-floor maps as sibling file pairs — one image and one `.json` data file per floor, named with a numeric suffix (e.g. `TavernMap-_0.jpg`, `TavernMap-_0.json`, `TavernMap-_1.jpg`, `TavernMap-_1.json`). The image can be a static format (`.jpg`, `.jpeg`, `.png`, `.webp`) or an animated video (`.webm`, `.mp4`, `.m4v`); video floors are imported as animated Scene Level backgrounds.
+Dungeon Alchemist exports multi-floor maps as sibling file pairs: one image and one `.json` per floor, named with a numeric suffix (`TavernMap-_0.jpg`, `TavernMap-_0.json`, `TavernMap-_1.jpg`, ...). The image is static (`.jpg`, `.jpeg`, `.png`, `.webp`) or video (`.webm`, `.mp4`, `.m4v`); video floors become animated Scene Level backgrounds.
 
 <p align="center"><img width="900" src="docs/importer-preview.webp"></p>
 
-This module reads all pairs in a folder, parses each JSON for wall, door, and light data, and creates a **single Foundry VTT Scene** where each floor becomes a native **Scene Level** (a feature introduced in Foundry VTT v14). Walls, doors, and lights are bound to their respective level so they only activate when that floor is active — no manual setup required.
+The module reads all pairs in a folder, parses each JSON for walls, doors and lights, and creates one Scene where each floor is a native **Scene Level** (new in Foundry v14). Walls, doors and lights are bound to their level and only act when that floor is active.
 
 ## Requirements
 
-- Each export folder must contain **only** the files for a single map. Do not mix exports from different maps in the same folder, as the importer will attempt to pair every image/video file with a sibling `.json` by filename stem. (The importer warns if it detects more than one map in a folder.)
-- Foundry VTT **v14 or later** is required. The native Levels system used here is not available in earlier versions.
-- **Animated (video) floors:** Foundry accepts `.webm`, `.mp4`, and `.m4v` as animated Scene Level backgrounds. Keep video maps reasonably sized (Foundry recommends ~30 fps and under ~50 MB per map). Note that a placed video map may need a single click on the canvas before it begins playing — this is Foundry behavior, not the importer.
+- One map per export folder: the importer pairs every image/video with a sibling `.json` by filename stem. It warns if a folder holds more than one map.
+- Foundry VTT v14 or later (native Levels).
+- Video floors: keep maps under Foundry's recommended ~30 fps and ~50 MB. A placed video map may need one click on the canvas before it plays (Foundry behavior).
 
 ## Features
 
 ### Level Manager (`DA.open()`)
 
-The toolkit's home window. Open it from the **Dungeon Alchemist — Level Manager** button the module adds to the Token controls (left canvas toolbar; turn it off with the *Toolbar button* client setting), from the *Open the Toolkit* button in Module Settings, or with `DA.open()`. GM only.
+The toolkit's home window, GM only. Open it from the **Dungeon Alchemist — Level Manager** button in the Token controls (disable with the *Toolbar button* client setting), the *Open the Toolkit* button in Module Settings, or `DA.open()`.
 
-- **Floors** tab: the scene's floors, top first. Select one to view it, rename it, change its elevations, move it up or down, set it as the start floor, swap its image, or add and remove floors; the stairs that touch the selected floor are listed beside it. Cross-level visibility and anything else beyond that stays in Foundry's own Levels tab (the *Open Scene Config (Levels)* shortcut).
-- **Import** tab: opens the importer below.
-- **Stairs** tab: every stair and portal on the scene, with go-to, edit, add-a-floor, adopt (legacy regions) and remove actions, and an **Add Stairs / Portal** button.
+- **Floors** tab: the scene's floors, top first. View, rename, re-elevate, reorder, set the start floor, swap the image, add or remove floors; the stairs touching the selected floor are listed beside it. Cross-level visibility and everything else stays in Foundry's Levels tab (*Open Scene Config (Levels)* shortcut).
+- **Import** tab: opens the importer.
+- **Stairs** tab: every stair and portal on the scene (go-to, edit, add-a-floor, adopt legacy regions, remove) plus **Add Stairs / Portal**.
 
 ### Importer Dialog (`DA.Importer()`)
 
-The dialog is tabbed. Open it from the Level Manager's **Import** tab, or call `DA.Importer()` from a macro.
+Open it from the Level Manager's **Import** tab or `DA.Importer()`.
 
 #### Scene Defaults tab
-- **Copy Media to World** toggle (off by default): copies all floor media (images *and* videos) into `worlds/<your-world>/da-imported/<map-name>/` and renames them to `kebab-case` for portability.
-- The dialog remembers your last-used **door texture, door sound, background color, grid opacity, and Copy Media toggle** per browser and restores them the next time you open it.
+- **Copy Media to World** (off by default): copies floor images and videos into `worlds/<your-world>/da-imported/<map-name>/`, renamed to `kebab-case`.
+- The last-used door texture, door sound, background color, grid opacity and Copy Media toggle are remembered per browser.
 
 #### Doors tab
-- **Door texture selector** with 25 Foundry canvas door options and a real-time hover preview.
-- **Door sound selector** with 21 Foundry door sound options and a play-preview button to audition before import.
-- Any wall exported with `door=1` automatically receives the selected texture (with swing animation) and sound key on import.
+- Door texture selector (25 Foundry canvas doors, hover preview) and door sound selector (21 options, play preview).
+- Every wall exported with `door=1` gets the selected texture (with swing animation) and sound.
 
 #### Levels tab
-- One row per detected floor showing a thumbnail, an editable name, and editable **bottom / top elevation** inputs. Video floors show a paused first frame in the row and animate in the enlarged hover preview.
-- **Uniform floor height** field at the top: changing it recalculates all bottom/top inputs at once.
-- Rows can be dragged to reorder.
-- **Advanced** toggle: shows a per-level **Roof** checkbox (not available on the bottom floor), which makes that level render only when the floor directly below it is active, and a **Start** button that picks the floor shown when the scene first loads. A floor whose filename contains "roof" is pre-marked as a roof.
-- **Large-media warning**: floors whose media exceeds Foundry's ~50 MB recommendation for animated maps are flagged with an amber outline (hover the thumbnail for the exact size), plus a summary notification. Sizes are probed for local sources only.
-- **Elevation validation**: import is blocked with a message if any level's bottom is ≥ its top.
+- One row per floor: thumbnail (video floors show a paused first frame, animated on hover), editable name, editable bottom / top elevation. Drag to reorder.
+- **Uniform floor height** recalculates all elevations at once.
+- **Advanced** toggle: per-level **Roof** checkbox (not on the bottom floor; the level renders only when the floor directly below is active) and a **Start** button for the floor shown on first load. A filename containing "roof" pre-marks a roof.
+- Floors over ~50 MB get an amber outline (hover for the size) and a summary notification. Sizes are probed for local sources only.
+- Import is blocked if any level's bottom is >= its top.
 
 ### Stairs & Portals (`DA.AddStairs()`, `DA.StairsManager()`)
 
-Create linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them; modes are **stairs** (cross-level, with a confirm), **teleport** (same map), and **trap** (hidden, silent, one-way). A link can span more than two floors (place a footprint on each floor, then Done) — every floor interconnects, so stepping onto any floor's stair offers every other connected floor. The **Stairs Manager** lists every link on the scene to find, edit, or delete it.
+Linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them. Modes: **stairs** (cross-level, confirm), **teleport** (same level, confirm), **trap** (hidden, silent, one-way). A link can span more than two floors (place a footprint on each, then Done); every floor interconnects, so stepping onto any floor's stair offers every other connected floor. The **Stairs Manager** lists every link on the scene to find, edit or delete.
 
-- `DA.AddStairs()` — prompts for type/label/two-way, then guides you through placing the entrance and exit.
-- `DA.AddStairs({ mode: "stairs"|"teleport"|"trap", label, twoWay })` — same flow, skipping the prompt.
-- `DA.LinkStairs()` — links the two currently-selected Regions into a pair.
-- `DA.AddFloorToLink(linkId)` — adds another floor to an existing stair/portal link.
-- `DA.StairsManager()` — opens the manager.
+The Level Manager's **Stairs** tab has the same add and manage actions. Regions made by the old `DA.AddRegion()` appear tagged **legacy**, with **Adopt** (into a managed link) and **Remove**.
 
-The Level Manager's **Stairs** tab has the same add and manage actions.
+The player overlay is a sight-gated hint label only: clicking it does not move the token. Using a stair is always the native walk-in teleport. A real click-to-use is #18.
 
-A legacy region made by the old `DA.AddRegion()` tool still shows up in the Level Manager and Stairs Manager (tagged **legacy**), with actions to **Adopt** it into a managed link or **Remove** it.
+Foundry behaviors, not bugs here: two linked teleport regions can ping-pong a token, and the GM's view does not always follow a token's cross-level teleport.
 
-The player-facing overlay is a sight-gated **hint label only** — clicking it does not move the token; using a stair is always the native walk-in teleport. A real click-to-use is tracked as issue #18.
-
-Two behaviors you may see are Foundry itself, not a bug here: two linked teleport regions can ping-pong a token back and forth (native handles re-entry; report it if you see a loop), and the GM's own view doesn't always auto-follow a token's cross-level teleport.
-
-> **Status:** built on native v14 and hardened, but pending live confirmation in a running v14 world (there is no Foundry runtime in CI) — tracked as issue #17. See `docs/STAIRS-PORTAL-DESIGN.md` for the design and `docs/ARCHITECTURE.md` for how it's built.
+> **Status:** pending live confirmation in a running v14 world (no Foundry runtime in CI), #17. Design: `docs/STAIRS-PORTAL-DESIGN.md`; code map: `docs/ARCHITECTURE.md`.
 
 ### Region Tool (`DA.AddRegion()`) — legacy
 
-> Superseded by the stairs/portal tools above and no longer has a toolbar button; still callable via `DA.AddRegion()`. Opens a dialog to configure a staircase or elevator transit region spanning multiple consecutive levels using the native `changeLevel` behavior. Once placed, move or resize it with Foundry's native Region tools.
+> Superseded by the stairs/portal tools; no toolbar button, still callable. Configures a region spanning consecutive levels with the native `changeLevel` behavior; move or resize it with Foundry's Region tools.
 
 ## Usage
 
-Open the Level Manager (see above), or call the API directly. The API lives at `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to `DA` for convenience:
+The API is `game.modules.get("dungeon-alchemist-toolkit").api`, aliased to `DA`:
 
 ```js
 DA.open();              // Level Manager (Floors / Import / Stairs)
@@ -88,8 +78,6 @@ DA.AddFloorToLink(id);  // add another floor to an existing stair/portal link
 DA.StairsManager();     // browse/edit this scene's stairs
 DA.AddRegion();         // legacy multi-level changeLevel region
 ```
-
-Select the folder exported by Dungeon Alchemist, configure the tabs, and click Import. The module creates a single Scene with one native Scene Level per floor, with walls, doors, and lights already bound to their respective levels.
 
 # 📦 Installation
 
