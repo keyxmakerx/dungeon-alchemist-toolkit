@@ -1,10 +1,7 @@
 {
   "DAT.Common.GMOnly": "Dungeon Alchemist Toolkit: only a GM can do that.",
 
-  "DAT.Controls.Group": "Dungeon Alchemist",
-  "DAT.Controls.Import": "Import DA Folder",
   "DAT.Controls.AddStairs": "Add Stairs / Portal",
-  "DAT.Controls.Manager": "Stairs Manager",
 
   "DAT.Dash.Title": "Dungeon Alchemist — Level Manager",
   "DAT.Dash.Scene": "Scene",
@@ -12,7 +9,6 @@
   "DAT.Dash.FloorsHd": "Floors · click to view",
   "DAT.Dash.Elev": "elev",
   "DAT.Dash.Viewing": "viewing",
-  "DAT.Dash.Start": "start",
   "DAT.Dash.SameFloor": "same floor",
   "DAT.Dash.StairsHd": "Stairs & portals on this floor",
   "DAT.Dash.NoStairs": "No stairs connect this floor yet.",
@@ -53,12 +49,8 @@
   "DAT.Settings.ToolbarButton.Hint": "Add a Dungeon Alchemist button to the scene toolbar that opens the Level Manager. Turn this off if it ever interferes with the canvas — the Module Settings entry and the DA API still open it.",
 
   "DAT.Hub.Title": "Dungeon Alchemist Toolkit",
-  "DAT.Hub.Intro": "Import a Dungeon Alchemist export and manage stairs/portals between levels.",
   "DAT.Hub.MenuLabel": "Open the Toolkit",
-  "DAT.Hub.MenuHint": "Open the Dungeon Alchemist Toolkit hub (import + stairs tools).",
-  "DAT.Hub.ImportHint": "Turn a folder of DA floor exports into one native multi-level Scene.",
-  "DAT.Hub.AddStairsHint": "Place a linked entrance/exit on the canvas (stairs, teleport, or trap).",
-  "DAT.Hub.ManagerHint": "List, find, edit, and delete this scene's stairs and portals.",
+  "DAT.Hub.MenuHint": "Open the Level Manager (import + stairs tools).",
 
   "DAT.Importer.GMOnly": "DA Importer: only a GM can import scenes.",
   "DAT.Importer.BrowseFailed": "DA Importer: cannot browse \"{path}\" ({error}).",
@@ -138,7 +130,6 @@
   "DAT.Stairs.ManagerTitle": "DA Stairs Manager",
   "DAT.Stairs.DeleteTitle": "Delete stairs?",
   "DAT.Stairs.StepEntrance": "New {mode} \"{label}\" — place the FIRST floor. You can add more floors after.",
-  "DAT.Stairs.StepExit": "New {mode} \"{label}\" — Step 2 of 2: place the EXIT",
   "DAT.Stairs.StepMore": "\"{label}\" — add another floor ({count} placed). Pick the floor and draw its spot, or click Done to finish.",
   "DAT.Stairs.StepAddFloor": "Add a floor to \"{label}\" — pick the floor, draw its spot, then Done ({count} added).",
   "DAT.Stairs.StepHint": "Pick the floor, then click (or drag) on the canvas to place. Esc or Cancel to stop.",
