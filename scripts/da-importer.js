@@ -1,28 +1,19 @@
 /**
  * Dungeon Alchemist → Foundry v14 native Levels importer.
  *
- * Why this module exists:
- * Dungeon Alchemist exports multi-floor maps as sibling pairs of one media file
- * (image or video) + `.json` (one pair per floor). Foundry v14 natively supports
- * multi-floor scenes through
- * `scene.levels[]`. This module bridges the two formats so the user gets a single
- * Scene with one Level per exported floor, populated with walls/doors/lights.
+ * DA exports one media file (image or video) plus `.json` per floor; this
+ * builds one Scene with one native Level per floor.
  *
- * Level binding strategy:
- * Both BaseWall and BaseAmbientLight expose a `levels` field of type
- * `SceneLevelsSetField` — a Set of Level `_id`s the document belongs to.
- * We emit `levels: [levelId]` per document, with the id taken from the
- * matching Scene Level we build below.
+ * Level binding: walls and ambient lights carry a `levels` field (a set of
+ * Level `_id`s). Each document gets `levels: [levelId]` for its floor's Level.
  */
 
 import { FLOOR_HEIGHT } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { collectFloorPairs, distinctMapStems, mapName, isVideoPath, toKebab } from "./floor-grouping.js";
 
-// The folder→floor grouping is pure and lives in floor-grouping.js (unit-tested
-// in test/floor-grouping.test.mjs). Re-export the pieces other modules import
-// from here so their imports are unchanged (floor-rows.js → isVideoPath,
-// importer-dialog.js → collectFloorPairs).
+// Folder-to-floor grouping lives in floor-grouping.js; re-exported for
+// floor-rows.js (isVideoPath) and importer-dialog.js (collectFloorPairs).
 export { isVideoPath, collectFloorPairs, distinctMapStems };
 // _senseEnum is pure and unit-tested directly (test/da-importer-sense.test.mjs).
 export { _senseEnum };

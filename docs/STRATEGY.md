@@ -47,7 +47,7 @@ Verdicts: **INVEST** (core value) · **BUILD on native** (real gap we fill) · *
 |---|---|---|---|
 | **Import DA folder → Scene + Levels + walls/doors/lights** | Nothing DA-specific | The whole point: one-click automation from DA exports | **INVEST (core)** |
 | **Per-level naming / elevation editing** | Native **Levels tab** (generic, authoritative) | DA-aware *pre-fill* at import time (filenames→names, auto elevations, roof shortcut, media preview) | **TRIM** — import-time only; ongoing editing defers to native (§5) |
-| **Stairs / portals between levels** | `teleportToken` (+`destinations`/`revealed`), `changeLevel`, Regions | Linking UX (wizard + click-connect), Stairs Manager, sight-gated player hint overlay, GM link overlay, trap/confirm presets | **BUILD on native** |
+| **Stairs / portals between levels** | `teleportToken` (+`destinations`/`revealed`), `changeLevel`, Regions | Linking UX (wizard, link two selected Regions), Stairs Manager, sight-gated player hint overlay, GM link overlay, trap/confirm presets | **BUILD on native** |
 | **Area blocking / surfaces** | Native `defineSurface` | None | **DEFER** |
 | **Level navigation / floor switching** | Native `viewLevel`/`cycleLevel` | None (we just call them) | **DEFER** |
 | **Region shapes** | Native rectangle/poly/ellipse + Ring/Emanation | None (support them) | **DEFER** |
