@@ -1,7 +1,7 @@
 /**
  * Persistent on-canvas placement banner for the stairs/portal wizard.
  *
- * A plain DOM element (robust — no canvas/PIXI dependency) pinned over the board
+ * A plain DOM element (no canvas/PIXI dependency) pinned over the board
  * with step text, an in-flow floor picker, and Back/Cancel buttons. Level option
  * labels are set via `textContent` (never innerHTML) so a DA-derived level name
  * can't inject markup.

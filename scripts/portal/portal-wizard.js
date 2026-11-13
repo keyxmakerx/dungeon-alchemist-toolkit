@@ -88,7 +88,7 @@ async function promptStairsOptions() {
 
 /**
  * Interactive create: ask for type/label/direction, then run the guided
- * placement. This is what the toolbar/hub and `DA.AddStairs()` (no args) call.
+ * placement. This is what `DA.AddStairs()` (no args) and the Stairs Manager's Add call.
  *
  * @param {Scene} [scene=canvas.scene]
  * @returns {Promise<void>}

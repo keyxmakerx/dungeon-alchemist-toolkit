@@ -1,37 +1,32 @@
 /**
  * Native Scene-Level write helpers for dashboard floor editing.
  *
- * Every edit goes through `scene.update({ levels })` with the COMPLETE levels
- * array — only the target fields changed — so a wholesale array replace can never
- * drop a floor. After each write we read the levels back and warn if the count or
- * any `_id` drifted (worst case is a no-op, never silent data loss).
+ * Every edit writes the COMPLETE levels array via `scene.update({ levels })`
+ * with only the target fields changed, so a wholesale replace never drops a
+ * floor. Each write is read back and warns if the count or any `_id` drifted.
  *
- * No parallel data model: we only ever write native LevelData fields
- * (`name`, `elevation`, `sort`) and the Scene's `initialLevel`. Deletion and
- * cross-level visibility stay in Foundry's native Levels tab (the dashboard's
- * "Open Scene Config" escape hatch), which handles their cascades safely.
+ * Only native LevelData fields (`name`, `elevation`, `sort`) and the Scene's
+ * `initialLevel` are written. Deletion and cross-level visibility stay in
+ * Foundry's Levels tab (`openNativeLevels`), which handles their cascades.
  *
- * Regions/portals bind to a floor by its level `_id` (see portal-core.js
- * `regionLevelId`), so renaming, re-elevating, or reordering a floor keeps its
- * stairs attached.
+ * Regions bind to a floor by level `_id` (`regionLevelId`), so rename,
+ * re-elevate and reorder keep stairs attached.
  */
 
 import { getSceneLevels } from "./levels.js";
 import { requireGM } from "./util.js";
 
 /**
- * Serialize all level-array writes. Two edits fired close together (e.g. an input
- * blur-commit immediately followed by a button action) each read the full array,
- * mutate, and write it back; without ordering, the later stale read would clobber
- * the earlier write. The chain guarantees each task reads AFTER the previous wrote.
+ * Serializes level-array writes: each task reads the full array, so without
+ * ordering a later stale read (blur-commit then button action) clobbers the
+ * earlier write.
  * @type {Promise<unknown>}
  */
 let _writeChain = Promise.resolve();
 
 /**
  * Enqueue a level-write task so it runs after any in-flight write completes.
- * The chain survives a throwing task (errors are isolated, not swallowed for the
- * caller — the returned promise still rejects).
+ * A throwing task rejects its own promise but does not break the chain.
  * @template T
  * @param {() => Promise<T>} task
  * @returns {Promise<T>}
@@ -67,10 +62,7 @@ async function writeAndVerify(scene, nextLevels, context, extra = {}) {
     ui.notifications?.error?.(`Floor update failed: ${err.message}`);
     return false;
   }
-  // Read-back verification: the result must match exactly the floors we sent (count
-  // + ids). Comparing against the SENT set (not the prior set) means add/remove are
-  // validated correctly too — a dropped, duplicated, or renamed id surfaces a warning
-  // instead of silently corrupting the scene.
+  // Compare against the SENT set (not the prior set) so add/remove verify too.
   const after = getSceneLevels(scene);
   const afterIds = new Set(after.map((l) => l._id));
   if (after.length !== nextLevels.length) {
