@@ -10,7 +10,7 @@
 import { MODULE_ID } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { getSceneLevels, getCurrentLevelId, getInitialLevelId, viewLevel } from "./levels.js";
-import { getPortalLinkGroups, getScenePortals, deletePortalLink, bindPortals, regionCenter, regionLevelId, regionLevelIds, adoptLegacyRegion, LEGACY_LINK_PREFIX } from "./portal/portal-core.js";
+import { getPortalLinkGroups, getScenePortals, getRegionBehaviors, deletePortalLink, bindPortals, regionCenter, regionLevelId, regionLevelIds, adoptLegacyRegion, LEGACY_LINK_PREFIX } from "./portal/portal-core.js";
 import { updateLevel, setStartLevel, moveLevel, openNativeLevels, replaceLevelImage, addLevel, removeLevel } from "./scene-levels-edit.js";
 import { buildThumb } from "./floor-rows.js";
 import { safeDecode } from "./floor-grouping.js";
@@ -121,16 +121,22 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const legacy = entries[0]?.legacy ?? false;
       const mode = first.mode || "stairs";
       const soloMulti = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
+      // Entrance first, so a one-way link reads in the direction it travels.
+      const ordered = entries.slice().sort((a, b) =>
+        Number(b.portal?.role === "entrance") - Number(a.portal?.role === "entrance"));
       const ends = soloMulti
         ? regionLevelIds(entries[0].region).map((id) => ({ regionId: entries[0].region.id, levelName: levelName(id) }))
-        : entries.map((e) => ({ regionId: e.region.id, levelName: levelName(regionLevelId(e.region)) }));
+        : ordered.map((e) => ({ regionId: e.region.id, levelName: levelName(regionLevelId(e.region)) }));
+      // One-way when the far ends carry no teleport back (always so for a trap).
+      const oneWay = mode === "trap" || ordered.slice(1).some((e) =>
+        !getRegionBehaviors(e.region).some((b) => b?.type === "teleportToken"));
       links.push({
         linkId,
         label: first.label || "Stairs",
         mode,
         icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs,
         legacy,
-        ends: ends.map((x) => x.levelName).join(legacy ? ", " : " ⟷ "),
+        ends: ends.map((x) => x.levelName).join(legacy ? ", " : (oneWay ? " → " : " ⟷ ")),
         // A solo region has one Region doc, so collapse its per-floor "goto" buttons to one.
         gotoEnds: (soloMulti ? [ends[0]] : ends).map((x) => ({ regionId: x.regionId, tip: t("DAT.Dash.GotoEnd", { floor: x.levelName }) }))
       });
