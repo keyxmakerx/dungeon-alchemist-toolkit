@@ -1,6 +1,6 @@
 /**
  * GM-only portal overlay — on the current level, shows what every stair / portal
- * / trap connects to: a coloured ring + mode icon on each end (stable colour per
+ * / trap connects to: a coloured ring on each end (stable colour per
  * link), a connecting line + midpoint label for two ends on the same floor, and
  * a ↑/↓ "Floor" badge when the partner is on another level.
  *
@@ -14,6 +14,7 @@ import { getPortalLinkGroups, regionCenter, regionLevelId, regionLevelIds, getPo
 import { getCurrentLevelId, getSceneLevels } from "../levels.js";
 import { linkColor } from "./portal-color.js";
 import { drawCanvasLabel } from "./canvas-label.js";
+import { t } from "../util.js";
 
 /** @type {PIXI.Graphics|null} */
 let _overlay = null;
@@ -32,8 +33,6 @@ let _pinnedId = null;
 /** Per-on-level-end card content, keyed by region id; rebuilt every draw. */
 const _cardInfo = new Map();
 
-/** Friendly glyph per portal mode. */
-const MODE_GLYPH = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
 /** Cross-floor direction arrows — swap to "^"/"v" here if a build renders these as tofu. */
 const ARROW_UP = "↑";
 const ARROW_DOWN = "↓";
@@ -158,25 +157,13 @@ export function drawPortalOverlay() {
         else offLevel.push(e);
       }
 
-      // Ring + mode icon on each on-level end.
+      // A ring on each on-level end. Its kind is in the card shown on hover.
       const onCenters = [];
       for (const e of onLevel) {
         const c = regionCenter(e.region);
         if (!c) continue;
         g.lineStyle(2, color, 0.65);
         g.drawCircle(c.x, c.y, ringR);
-        if (labels) {
-          // Per-icon guard: an emoji/font issue degrades this end to ring-only rather
-          // than throwing out of the whole group's draw.
-          try {
-            const glyph = MODE_GLYPH[e.portal?.mode] ?? MODE_GLYPH.stairs;
-            const icon = new PIXI.Text(glyph, { fontFamily: "Signika, sans-serif", fontSize: Math.max(12, Math.round(ringR * 1.1)) });
-            icon.anchor.set(0.5, 0.5);
-            icon.x = c.x;
-            icon.y = c.y;
-            labels.addChild(icon);
-          } catch (_) { /* ring stays; icon skipped */ }
-        }
         onCenters.push({ e, c });
       }
 
@@ -319,7 +306,8 @@ function showCard(info) {
   title.textContent = info.label;
   const sub = document.createElement("div");
   sub.className = "da-portal-card-sub";
-  sub.textContent = info.dest ? `${info.mode} · ${info.dest}` : info.mode;
+  const kind = t(`DAT.Stairs.Kind.${["stairs", "teleport", "trap"].includes(info.mode) ? info.mode : "stairs"}`);
+  sub.textContent = info.dest ? `${kind} · ${info.dest}` : kind;
   card.append(title, sub);
   card.style.left = `${pos.x}px`;
   card.style.top = `${pos.y - 10}px`;

@@ -1,7 +1,6 @@
 /**
- * Scene-level helpers shared by the importer, the legacy region tool and the
- * portal system. Separate from `region-adder.js` so portal modules need not
- * import the legacy tool (which re-exports these).
+ * Scene-level helpers shared by the importer, the Level Manager and the
+ * stairs system.
  */
 
 /**

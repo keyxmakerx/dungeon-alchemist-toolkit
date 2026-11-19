@@ -2,7 +2,8 @@
  * Persistent on-canvas placement banner for the stairs/portal wizard.
  *
  * A plain DOM element (no canvas/PIXI dependency) pinned over the board
- * with step text, an in-flow floor picker, and Back/Cancel buttons. Level option
+ * with step text, an in-flow floor picker, and Done/Back/Cancel buttons. It
+ * floats over the map, so it is dark like Foundry's own tooltips in every theme. Level option
  * labels are set via `textContent` (never innerHTML) so a DA-derived level name
  * can't inject markup.
  */
@@ -23,7 +24,8 @@ export class PlacementBanner {
   mount() {
     if (this.el) return;
     const el = document.createElement("div");
-    el.className = "da-place-banner";
+    el.className = "da-place-banner themed theme-dark";
+    el.setAttribute("role", "status");
     el.innerHTML = `
       <div class="da-place-title"></div>
       <div class="da-place-hint"></div>
@@ -66,14 +68,16 @@ export class PlacementBanner {
     const label = this.el.querySelector(".da-place-level-label");
     const text = this.el.querySelector(".da-place-level-text");
     const select = this.el.querySelector(".da-place-level");
-    text.textContent = labelText ? `${labelText}: ` : "";
+    text.textContent = labelText ? `${labelText} ` : "";
     select.replaceChildren();
     for (const lv of levels) {
       const opt = document.createElement("option");
       opt.value = lv._id;
-      const b = lv.elevation?.bottom ?? 0;
-      const t = lv.elevation?.top ?? 0;
-      opt.textContent = `${lv.name ?? "Level"} (elev ${b}–${t})`;
+      opt.textContent = t("DAT.Stairs.FloorOption", {
+        name: lv.name || t("DAT.Dash.UnnamedFloor"),
+        bottom: lv.elevation?.bottom ?? 0,
+        top: lv.elevation?.top ?? 0
+      });
       if (lv._id === selectedId) opt.selected = true;
       select.appendChild(opt);
     }

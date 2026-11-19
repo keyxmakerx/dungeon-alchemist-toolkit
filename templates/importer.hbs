@@ -1,39 +1,49 @@
 <div class="da-import">
 
+  <p class="da-import-copied" hidden></p>
+
   <div class="da-browse">
-    <div class="da-browse-bar">
-      <label class="da-browse-src">{{localize "DAT.Importer.Source"}}
-        <select name="sourceSelect">
-          <option value="data">{{localize "DAT.Importer.SourceUser"}}</option>
-          <option value="public">{{localize "DAT.Importer.SourceCore"}}</option>
-        </select>
-      </label>
-      <button type="button" class="da-browse-up" data-action="browseUp" data-tooltip="{{localize "DAT.Importer.UpFolder"}}"><i class="fa-solid fa-arrow-up"></i></button>
-      <span class="da-browse-path">/ (root)</span>
-      <span class="da-dash-spacer"></span>
-      <button type="button" class="da-browse-syspick" data-action="browse" data-tooltip="{{localize "DAT.Importer.SysPick"}}"><i class="fa-solid fa-folder-open"></i></button>
+    <div class="da-browse-line" hidden>
+      <span class="da-browse-where"></span>
+      <span class="da-sp"></span>
+      <button type="button" class="da-quiet" data-action="changeFolder">{{localize "DAT.Importer.ChangeFolder"}}</button>
     </div>
-    <p class="hint">{{localize "DAT.Importer.BrowseHint"}}</p>
-    <div class="da-browse-dirs"></div>
-    <p class="da-browse-status"></p>
+    <div class="da-browse-full">
+      <div class="da-browse-bar">
+        <label class="da-browse-src">{{localize "DAT.Importer.Source"}}
+          <select name="sourceSelect">
+            <option value="data">{{localize "DAT.Importer.SourceUser"}}</option>
+            <option value="public">{{localize "DAT.Importer.SourceCore"}}</option>
+          </select>
+        </label>
+        <button type="button" class="da-browse-up" data-action="browseUp">{{localize "DAT.Importer.UpFolder"}}</button>
+        <span class="da-browse-path"></span>
+        <span class="da-sp"></span>
+        <button type="button" class="da-quiet" data-action="browse" data-tooltip="{{localize "DAT.Importer.SysPickHint"}}">{{localize "DAT.Importer.SysPick"}}</button>
+      </div>
+      <p class="hint">{{localize "DAT.Importer.BrowseHint"}}</p>
+      <div class="da-browse-dirs"></div>
+    </div>
+    <p class="da-browse-status" role="status"></p>
     <input type="hidden" name="folder" value="" />
     <input type="hidden" name="source" value="data" />
   </div>
 
-  <div class="da-import-floors">
+  <div class="da-import-floors" hidden>
     <div class="da-import-floors-hd">
-      <span class="da-import-floors-title">{{localize "DAT.Importer.FloorsTitle"}}<span class="da-import-count"></span></span>
-      <span class="da-dash-spacer"></span>
+      <h3 class="da-hd">{{localize "DAT.Importer.FloorsTitle"}}</h3>
+      <span class="da-sp"></span>
       <label class="da-import-fh" data-tooltip="{{localize "DAT.Importer.HeightHint"}}">{{localize "DAT.Importer.HeightLabel"}}
         <input type="number" name="uniformFloorHeight" min="1" step="1" value="10" />
       </label>
       <label class="da-adv-toggle"><input type="checkbox" name="showAdvanced" /> {{localize "DAT.Importer.AdvancedLabel"}}</label>
-      <button type="button" class="da-info-icon" aria-label="{{localize "DAT.Importer.AdvancedAria"}}">&#9432;</button>
+      <button type="button" class="da-quiet da-adv-help-btn" aria-expanded="false">{{localize "DAT.Importer.AdvancedAria"}}</button>
     </div>
 
     <div class="da-adv-help" hidden>
       <p><strong>{{localize "DAT.Importer.AdvHelpIntro"}}</strong></p>
       <ul>
+        <li>{{{localize "DAT.Importer.AdvHelpRange"}}}</li>
         <li>{{{localize "DAT.Importer.AdvHelpRoof"}}}</li>
         <li>{{{localize "DAT.Importer.AdvHelpStart"}}}</li>
       </ul>
@@ -41,121 +51,102 @@
 
     <div class="da-levels-list"></div>
     <p class="da-import-orphans" hidden></p>
-    <p class="hint da-import-droptip" hidden>{{{localize "DAT.Importer.DropTip"}}}</p>
+    <p class="hint da-import-tip">{{localize "DAT.Importer.StreetTip"}}</p>
   </div>
 
   <details class="da-import-adv">
     <summary>{{localize "DAT.Importer.SceneDoorOptions"}}</summary>
     <div class="da-import-adv-body">
 
-      <div class="da-field-card">
-        <div class="form-group da-inline-group">
-          <label>{{localize "DAT.Importer.BackgroundColor"}}</label>
-          <div class="form-fields">
-            <input type="color" name="backgroundColor" value="#000000" />
-          </div>
+      <div class="form-group">
+        <label for="da-bg-color">{{localize "DAT.Importer.BackgroundColor"}}</label>
+        <div class="form-fields">
+          <input type="color" id="da-bg-color" name="backgroundColor" value="#000000" />
         </div>
         <p class="hint">{{localize "DAT.Importer.BackgroundColorHint"}}</p>
       </div>
 
-      <div class="da-field-card">
-        <div class="form-group da-inline-group">
-          <label>{{localize "DAT.Importer.GridOpacity"}}</label>
-          <div class="form-fields">
-            <input type="range" name="gridAlpha" min="0" max="1" step="0.05" value="0" />
-            <span class="range-value">0.00</span>
-          </div>
+      <div class="form-group">
+        <label for="da-grid-alpha">{{localize "DAT.Importer.GridOpacity"}}</label>
+        <div class="form-fields">
+          <input type="range" id="da-grid-alpha" name="gridAlpha" min="0" max="1" step="0.05" value="0" />
+          <span class="range-value">0.00</span>
         </div>
         <p class="hint">{{localize "DAT.Importer.GridOpacityHint"}}</p>
       </div>
 
-      <div class="da-field-card">
-        <div class="form-group da-inline-group da-toggle-group">
-          <label for="copyImages">{{localize "DAT.Importer.CopyMedia"}}</label>
-          <div class="form-fields">
-            <label class="da-toggle">
-              <input type="checkbox" id="copyImages" name="copyImages" />
-              <span class="da-toggle-track">
-                <span class="da-toggle-thumb"></span>
-              </span>
-            </label>
-          </div>
+      <div class="form-group da-copy-group">
+        <label for="copyImages">{{localize "DAT.Importer.CopyMedia"}}</label>
+        <div class="form-fields">
+          <input type="checkbox" id="copyImages" name="copyImages" />
         </div>
         <p class="hint">{{{localize "DAT.Importer.CopyMediaHint"}}}</p>
       </div>
 
-      <hr class="da-section-divider" />
-
-      <div class="da-field-card">
-        <div class="form-group da-inline-group">
-          <label>{{localize "DAT.Importer.DoorTexture"}}</label>
-          <div class="form-fields da-door-row">
-            <select name="doorTexture">
-              <option value="">{{localize "DAT.Importer.DoorTextureNone"}}</option>
-              <option value="canvas/doors/small/Door_Metal_Gray_E1_1x1.webp">Metal Gray E1</option>
-              <option value="canvas/doors/small/Door_Metal_Rusty_D_1x1.webp">Metal Rusty D</option>
-              <option value="canvas/doors/small/Door_Metal_Rusty_F_1x1.webp">Metal Rusty F</option>
-              <option value="canvas/doors/small/Door_Stone_Earthy_A_1x1.webp">Stone Earthy A</option>
-              <option value="canvas/doors/small/Door_Stone_Earthy_B1_1x1.webp">Stone Earthy B1</option>
-              <option value="canvas/doors/small/Door_Stone_Redrock_A_Rusty_1x1.webp">Stone Redrock A (Rusty)</option>
-              <option value="canvas/doors/small/Door_Stone_Redrock_B1_1x1.webp">Stone Redrock B1</option>
-              <option value="canvas/doors/small/Door_Stone_Volcanic_A_1x1.webp">Stone Volcanic A</option>
-              <option value="canvas/doors/small/Door_Stone_Volcanic_B1_1x1.webp">Stone Volcanic B1</option>
-              <option value="canvas/doors/small/Door_Wood_Ashen_A_1x1.webp">Wood Ashen A</option>
-              <option value="canvas/doors/small/Door_Wood_Ashen_D_1x1.webp">Wood Ashen D</option>
-              <option value="canvas/doors/small/Door_Wood_Ashen_E_1x1.webp">Wood Ashen E</option>
-              <option value="canvas/doors/small/Door_Wood_Ashen_L_1x1.webp">Wood Ashen L</option>
-              <option value="canvas/doors/small/Door_Wood_Dark_C_1x1.webp">Wood Dark C</option>
-              <option value="canvas/doors/small/Door_Wood_Dark_H_1x1.webp">Wood Dark H</option>
-              <option value="canvas/doors/small/Door_Wood_Dark_P_1x1.webp">Wood Dark P</option>
-              <option value="canvas/doors/small/Door_Wood_Light_B_1x1.webp">Wood Light B</option>
-              <option value="canvas/doors/small/Door_Wood_Light_G_1x1.webp">Wood Light G</option>
-              <option value="canvas/doors/small/Door_Wood_Light_I_1x1.webp">Wood Light I</option>
-              <option value="canvas/doors/small/Door_Wood_Red_D_1x1.webp">Wood Red D</option>
-              <option value="canvas/doors/small/Door_Wood_Red_J_1x1.webp">Wood Red J</option>
-              <option value="canvas/doors/small/Door_Wood_Red_K2_1x1.webp">Wood Red K2</option>
-              <option value="canvas/doors/small/Door_Wood_Walnut_F_1x1.webp">Wood Walnut F</option>
-              <option value="canvas/doors/small/Door_Wood_Walnut_H_1x1.webp">Wood Walnut H</option>
-              <option value="canvas/doors/small/Door_Wood_Walnut_R_1x1.webp">Wood Walnut R</option>
-            </select>
-            <img class="da-door-preview" src="" alt="" hidden />
-          </div>
+      <div class="form-group">
+        <label for="da-door-texture">{{localize "DAT.Importer.DoorTexture"}}</label>
+        <div class="form-fields da-door-row">
+          <select id="da-door-texture" name="doorTexture">
+            <option value="">{{localize "DAT.Importer.DoorTextureNone"}}</option>
+            <option value="canvas/doors/small/Door_Metal_Gray_E1_1x1.webp">Metal Gray E1</option>
+            <option value="canvas/doors/small/Door_Metal_Rusty_D_1x1.webp">Metal Rusty D</option>
+            <option value="canvas/doors/small/Door_Metal_Rusty_F_1x1.webp">Metal Rusty F</option>
+            <option value="canvas/doors/small/Door_Stone_Earthy_A_1x1.webp">Stone Earthy A</option>
+            <option value="canvas/doors/small/Door_Stone_Earthy_B1_1x1.webp">Stone Earthy B1</option>
+            <option value="canvas/doors/small/Door_Stone_Redrock_A_Rusty_1x1.webp">Stone Redrock A (Rusty)</option>
+            <option value="canvas/doors/small/Door_Stone_Redrock_B1_1x1.webp">Stone Redrock B1</option>
+            <option value="canvas/doors/small/Door_Stone_Volcanic_A_1x1.webp">Stone Volcanic A</option>
+            <option value="canvas/doors/small/Door_Stone_Volcanic_B1_1x1.webp">Stone Volcanic B1</option>
+            <option value="canvas/doors/small/Door_Wood_Ashen_A_1x1.webp">Wood Ashen A</option>
+            <option value="canvas/doors/small/Door_Wood_Ashen_D_1x1.webp">Wood Ashen D</option>
+            <option value="canvas/doors/small/Door_Wood_Ashen_E_1x1.webp">Wood Ashen E</option>
+            <option value="canvas/doors/small/Door_Wood_Ashen_L_1x1.webp">Wood Ashen L</option>
+            <option value="canvas/doors/small/Door_Wood_Dark_C_1x1.webp">Wood Dark C</option>
+            <option value="canvas/doors/small/Door_Wood_Dark_H_1x1.webp">Wood Dark H</option>
+            <option value="canvas/doors/small/Door_Wood_Dark_P_1x1.webp">Wood Dark P</option>
+            <option value="canvas/doors/small/Door_Wood_Light_B_1x1.webp">Wood Light B</option>
+            <option value="canvas/doors/small/Door_Wood_Light_G_1x1.webp">Wood Light G</option>
+            <option value="canvas/doors/small/Door_Wood_Light_I_1x1.webp">Wood Light I</option>
+            <option value="canvas/doors/small/Door_Wood_Red_D_1x1.webp">Wood Red D</option>
+            <option value="canvas/doors/small/Door_Wood_Red_J_1x1.webp">Wood Red J</option>
+            <option value="canvas/doors/small/Door_Wood_Red_K2_1x1.webp">Wood Red K2</option>
+            <option value="canvas/doors/small/Door_Wood_Walnut_F_1x1.webp">Wood Walnut F</option>
+            <option value="canvas/doors/small/Door_Wood_Walnut_H_1x1.webp">Wood Walnut H</option>
+            <option value="canvas/doors/small/Door_Wood_Walnut_R_1x1.webp">Wood Walnut R</option>
+          </select>
+          <img class="da-door-preview" src="" alt="" hidden />
         </div>
         <p class="hint">{{localize "DAT.Importer.DoorTextureHint"}}</p>
       </div>
 
-      <div class="da-field-card">
-        <div class="form-group da-inline-group">
-          <label>{{localize "DAT.Importer.DoorSound"}}</label>
-          <div class="form-fields da-door-row">
-            <select name="doorSound">
-              <option value="">{{localize "DAT.Importer.DoorSoundNone"}}</option>
-              <option value="futuristicFast">Futuristic (Fast)</option>
-              <option value="futuristicHydraulic">Futuristic (Hydraulic)</option>
-              <option value="futuristicForcefield">Futuristic (Forcefield)</option>
-              <option value="industrial">Industrial</option>
-              <option value="industrialCreaky">Industrial (Creaky)</option>
-              <option value="jail">Jail</option>
-              <option value="jailCreaky">Jail (Creaky)</option>
-              <option value="jailHeavy">Jail (Heavy)</option>
-              <option value="magicDoor">Magic Door</option>
-              <option value="magicWall">Magic Wall</option>
-              <option value="metal">Metal</option>
-              <option value="slidingMetal">Sliding Metal</option>
-              <option value="slidingMetalHeavy">Sliding Metal (Heavy)</option>
-              <option value="slidingModern">Sliding Modern</option>
-              <option value="slidingWood">Sliding Wood</option>
-              <option value="stoneBasic">Stone (Basic)</option>
-              <option value="stoneRocky">Stone (Rocky)</option>
-              <option value="stoneSandy">Stone (Sandy)</option>
-              <option value="woodBasic">Wood (Basic)</option>
-              <option value="woodCreaky">Wood (Creaky)</option>
-              <option value="woodHeavy">Wood (Heavy)</option>
-            </select>
-            <button type="button" data-action="previewSound" aria-label="{{localize "DAT.Importer.PreviewSoundAria"}}">
-              <i class="fas fa-play"></i>
-            </button>
-          </div>
+      <div class="form-group">
+        <label for="da-door-sound">{{localize "DAT.Importer.DoorSound"}}</label>
+        <div class="form-fields da-door-row">
+          <select id="da-door-sound" name="doorSound">
+            <option value="">{{localize "DAT.Importer.DoorSoundNone"}}</option>
+            <option value="futuristicFast">Futuristic (Fast)</option>
+            <option value="futuristicHydraulic">Futuristic (Hydraulic)</option>
+            <option value="futuristicForcefield">Futuristic (Forcefield)</option>
+            <option value="industrial">Industrial</option>
+            <option value="industrialCreaky">Industrial (Creaky)</option>
+            <option value="jail">Jail</option>
+            <option value="jailCreaky">Jail (Creaky)</option>
+            <option value="jailHeavy">Jail (Heavy)</option>
+            <option value="magicDoor">Magic Door</option>
+            <option value="magicWall">Magic Wall</option>
+            <option value="metal">Metal</option>
+            <option value="slidingMetal">Sliding Metal</option>
+            <option value="slidingMetalHeavy">Sliding Metal (Heavy)</option>
+            <option value="slidingModern">Sliding Modern</option>
+            <option value="slidingWood">Sliding Wood</option>
+            <option value="stoneBasic">Stone (Basic)</option>
+            <option value="stoneRocky">Stone (Rocky)</option>
+            <option value="stoneSandy">Stone (Sandy)</option>
+            <option value="woodBasic">Wood (Basic)</option>
+            <option value="woodCreaky">Wood (Creaky)</option>
+            <option value="woodHeavy">Wood (Heavy)</option>
+          </select>
+          <button type="button" data-action="previewSound">{{localize "DAT.Importer.PreviewSound"}}</button>
         </div>
         <p class="hint">{{localize "DAT.Importer.DoorSoundHint"}}</p>
       </div>
@@ -163,9 +154,7 @@
     </div>
   </details>
 
-  <footer class="sheet-footer flexrow">
-    <button type="button" data-action="import" disabled>
-      <i class="fas fa-file-import"></i> <span class="da-import-btn-label">{{localize "DAT.Importer.ImportBtn"}}</span>
-    </button>
+  <footer class="da-import-foot">
+    <button type="button" class="da-primary" data-action="import" disabled><span class="da-import-btn-label">{{localize "DAT.Importer.ImportBtn"}}</span></button>
   </footer>
 </div>

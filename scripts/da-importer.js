@@ -8,7 +8,7 @@
  * Level `_id`s). Each document gets `levels: [levelId]` for its floor's Level.
  */
 
-import { FLOOR_HEIGHT } from "./constants.js";
+import { FLOOR_HEIGHT, MODULE_ID, TODO_FLAG } from "./constants.js";
 import { requireGM, t } from "./util.js";
 import { collectFloorPairs, distinctMapStems, mapName, isVideoPath, toKebab, safeDecode } from "./floor-grouping.js";
 
@@ -25,10 +25,10 @@ export { _senseEnum, _mapWall };
  *
  * Probes existence via FilePicker.browse(): success → exists; throw → absent.
  *
- * @param {string} baseName  Kebab-case map name.
+ * @param {string} baseName  Folder name to try first.
  * @returns {Promise<string>} Full path of the created directory.
  */
-async function _ensureUniqueSubfolder(baseName) {
+export async function ensureUniqueSubfolder(baseName) {
   const FP = foundry.applications.apps.FilePicker.implementation;
   const root = `worlds/${game.world.id}/da-imported`;
 
@@ -171,7 +171,7 @@ export async function importFolder({ source, path, bucket = "", pairs = null, ba
     const kebabBase = toKebab(rawStem || "da-map");
     let destFolder;
     try {
-      destFolder = await _ensureUniqueSubfolder(kebabBase);
+      destFolder = await ensureUniqueSubfolder(kebabBase);
     } catch (err) {
       ui.notifications.error(t("DAT.Importer.FolderFailed", { error: err.message }));
       return null;
@@ -319,7 +319,10 @@ export async function importFolder({ source, path, bucket = "", pairs = null, ba
     // was dropped (a stale positional initialLevelIndex would point elsewhere).
     initialLevel: (levels[floors.findIndex((f) => f._initial)] ?? levels[0])._id,
     walls,
-    lights
+    lights,
+    // An export has no stairs in it, so a building starts with floors nobody
+    // can move between. The Level Manager lists that as left to do.
+    flags: levels.length > 1 ? { [MODULE_ID]: { [TODO_FLAG]: true } } : {}
   };
 
   console.log("[DA Importer] scene payload:", sceneData);

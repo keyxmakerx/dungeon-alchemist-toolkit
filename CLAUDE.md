@@ -14,7 +14,8 @@ build step and no CI.
 - `styles/module.css` — all module CSS (widgets don't use separate files).
 - `lang/en.json` — all user-facing strings; add new keys here, not literals.
 - `test/*.test.mjs` — the automated tests, for the pure logic: folder→floor
-  grouping, the wall mapping, and floor editing against a stand-in Scene.
+  grouping, the wall mapping, floor naming and heights, the side view of the
+  building, what a folder drop is, and floor editing against a stand-in Scene.
 - `assets/demo/` — sample Dungeon Alchemist export used in the README preview.
 
 ## Checking a change
@@ -22,7 +23,8 @@ build step and no CI.
 - `node --check scripts/<file>.js` (and any file you touched) — there is no
   Foundry runtime available outside a live world, so this is the syntax gate.
 - `for f in test/*.test.mjs; do node "$f"; done` — must stay green; they guard
-  folder→floor parsing, the wall mapping and floor editing.
+  folder→floor parsing, the wall mapping, floor naming, the side view, the
+  folder drop and floor editing.
 - Everything else is a live check in a running Foundry v14 world (see
   `docs/STAIRS-PORTAL-DESIGN.md` for the stairs system's live-verify list).
 
