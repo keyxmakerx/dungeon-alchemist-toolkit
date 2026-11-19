@@ -257,7 +257,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       const ghosts = ghostRects.map((r) => drawGhostRect(r)).filter(Boolean);
       removeGhost = () => ghosts.forEach((g) => { try { g(); } catch (_) { /* ignore */ } });
 
-      if (!banner.el) ui.notifications.info(`${title} — ${hint}`);
+      if (!banner.el) ui.notifications.info(`${title}. ${hint}`);
 
       currentCtrl = new AbortController();
       goBack = false;
@@ -420,7 +420,7 @@ export async function startStairwell(scene = canvas?.scene) {
   const title = t("DAT.Stairs.WellDrag", { floor });
   const hint = t("DAT.Stairs.WellDragHint");
   banner.setStep(title, hint);
-  if (!banner.el) ui.notifications.info(`${title} ${hint}`);
+  if (!banner.el) ui.notifications.info(`${title}. ${hint}`);
 
   const ctrl = new AbortController();
   banner.onCancel = () => ctrl.abort();

@@ -187,11 +187,6 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     this._mediaSizes = new Map();
     this._browserOpen = this._floorPairs.length === 0;
 
-    const folderInput = this.element?.querySelector("input[name='folder']");
-    const sourceInput = this.element?.querySelector("input[name='source']");
-    if (folderInput) folderInput.value = this._cwd;
-    if (sourceInput) sourceInput.value = this._source;
-
     // A file named "roof" is set to show only from the floor under it. That is a
     // guess, changeable under Advanced, so it is said out loud.
     const roofs = this._floorPairs.filter((p, i) => i > 0 && isRoofName(p.stem));
@@ -689,6 +684,18 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         row.classList.add("da-row-dragging");
       });
       indexBadge.addEventListener("dragend", () => row.classList.remove("da-row-dragging"));
+      // The same move without a mouse: the arrow keys, with the handle kept in
+      // hand so a floor can go several places in a row.
+      indexBadge.tabIndex = 0;
+      indexBadge.setAttribute("role", "button");
+      indexBadge.setAttribute("aria-label", t("DAT.Importer.MoveAria", { name }));
+      indexBadge.addEventListener("keydown", (e) => {
+        const to = e.key === "ArrowUp" ? i + 1 : e.key === "ArrowDown" ? i - 1 : null;
+        if (to === null || to < 0 || to >= this._floorPairs.length) return;
+        e.preventDefault();
+        this._reorderFloors(i, to);
+        this.element?.querySelector(`.da-level-row[data-uid="${CSS.escape(pair.uid)}"] .da-level-index`)?.focus();
+      });
 
       const thumb = _buildThumbEl(pair.media, "da-level-thumb", { animate: false });
       if (thumb.tagName === "VIDEO") this._thumbVideos.push(thumb);
