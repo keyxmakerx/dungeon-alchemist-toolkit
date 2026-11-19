@@ -14,7 +14,7 @@
  * label shows and walk-in stairs still work.
  */
 
-import { getScenePortals, regionCenter, regionLevelId } from "./portal-core.js";
+import { getScenePortals, getRegionBehaviors, regionCenter, regionLevelId } from "./portal-core.js";
 import { getCurrentLevelId } from "../levels.js";
 import { drawCanvasLabel } from "./canvas-label.js";
 import { t } from "../util.js";
@@ -31,6 +31,15 @@ function ownedToken() {
     placeables.find((t) => t.actor?.isOwner || t.document?.isOwner) ??
     null
   );
+}
+
+/**
+ * Whether stepping on this region takes a token anywhere. The far end of a
+ * one-way link has no transit behavior, so it gets no "use me" hint.
+ */
+function isUsable(region) {
+  return getRegionBehaviors(region).some((b) =>
+    (b?.type === "teleportToken" || b?.type === "changeLevel") && !b.disabled);
 }
 
 /** Best-effort line-of-sight test from the token to a point. */
@@ -92,7 +101,9 @@ export function refreshPlayerPortalLabels() {
     const range = gs * 4; // ~4 squares — "in range" to use
 
     for (const { region, portal } of getScenePortals(scene)) {
-      if (region.hidden) continue;                                   // traps stay invisible
+      // Neither end of a trap is labelled: the landing spot would give it away.
+      if (region.hidden || portal.mode === "trap") continue;
+      if (!isUsable(region)) continue;
       if (currentLevel && regionLevelId(region) !== currentLevel) continue; // current level only
       const c = regionCenter(region);
       if (!c) continue;

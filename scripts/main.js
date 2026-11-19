@@ -6,6 +6,7 @@ import { DALevelManager } from "./dashboard.js";
 import { registerToolkitEntries } from "./controls.js";
 import { registerPortalOverlayHooks } from "./portal/portal-overlay.js";
 import { registerPlayerPortalHooks } from "./portal/portal-player-overlay.js";
+import { getPortalFlag, regionUuid, unlinkDeletedPortal } from "./portal/portal-core.js";
 import { MODULE_ID, SETTING_IMPORTER_DEFAULTS } from "./constants.js";
 import { requireGM } from "./util.js";
 
@@ -71,4 +72,42 @@ Hooks.once("init", () => {
   Hooks.on("canvasReady", () => {
     try { foundry.applications?.instances?.get("da-level-manager")?.render(false); } catch (_) { /* ignore */ }
   });
+
+  // One GM tidies the other ends when a stair end is deleted, whichever tool
+  // deleted it. The active GM only, so two GMs never write the same fix twice.
+  Hooks.on("deleteRegion", (region) => {
+    if (!game.users?.activeGM?.isSelf) return;
+    let linkId, uuid;
+    try { linkId = getPortalFlag(region)?.linkId; uuid = regionUuid(region); } catch (_) { return; }
+    if (!linkId) return;
+    unlinkDeletedPortal(region.parent, uuid, linkId)
+      .catch((err) => console.warn("[DA Toolkit] could not unlink a deleted stair end (non-fatal):", err));
+  });
+
+  // The toolkit windows list floors and stairs, so they follow changes made
+  // anywhere else (the canvas, Foundry's own sheets, another GM).
+  let refreshTimer = null;
+  const refreshOpenWindows = (sceneId) => {
+    if (!game.user?.isGM || sceneId !== canvas?.scene?.id) return;
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      for (const id of ["da-level-manager", "da-stairs-manager"]) {
+        try {
+          const app = foundry.applications?.instances?.get(id);
+          if (!app?.rendered) continue;
+          // A redraw would throw away what is being typed; the next change catches up.
+          const active = document.activeElement;
+          if (active && app.element?.contains(active) && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) continue;
+          app.render(false);
+        } catch (_) { /* a stale list is not worth an error */ }
+      }
+    }, 150);
+  };
+  for (const h of ["createRegion", "updateRegion", "deleteRegion", "createLevel", "updateLevel", "deleteLevel"]) {
+    Hooks.on(h, (doc) => refreshOpenWindows(doc?.parent?.id));
+  }
+  for (const h of ["createRegionBehavior", "updateRegionBehavior", "deleteRegionBehavior"]) {
+    Hooks.on(h, (doc) => refreshOpenWindows(doc?.parent?.parent?.id));
+  }
+  Hooks.on("updateScene", (scene) => refreshOpenWindows(scene?.id));
 });

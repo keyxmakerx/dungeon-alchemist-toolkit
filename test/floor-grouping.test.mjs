@@ -14,6 +14,8 @@ import {
   mapName,
   isVideoPath,
   toKebab,
+  safeDecode,
+  isRoofName,
 } from "../scripts/floor-grouping.js";
 
 let passed = 0, failed = 0;
@@ -118,6 +120,30 @@ console.log("M: media helpers");
   check("isVideoPath jpg", isVideoPath("x/scene.jpg") === false);
   check("isVideoPath tolerates query", isVideoPath("x/scene.mp4?123") === true);
   check("toKebab strips + lowercases", toKebab("Inn by the Lake!") === "inn-by-the-lake", toKebab("Inn by the Lake!"));
+}
+
+console.log("N: current Dungeon Alchemist naming (plain _NN suffix)");
+{
+  const p = P(mk(["Keep_01", "Keep_00", "Keep_02"]));
+  check("Keep_00..02 ordered by floor number", p.map((x) => x.index).join() === "0,1,2", p.map((x) => x.index).join());
+  check("scene name drops the suffix", mapName(p, "data") === "Keep", mapName(p, "data"));
+  check("one map detected", distinctMapStems(p).length === 1, String(distinctMapStems(p).length));
+  const two = P(mk(["Keep_00", "Keep_01", "Crypt_00", "Crypt_01"]));
+  check("two maps in one folder are noticed", distinctMapStems(two).length === 2, distinctMapStems(two).join());
+  const one = P(mk(["Tavern_2"]));
+  check("a single-digit suffix is not read as DA's own", distinctMapStems(one).length === 0, distinctMapStems(one).join());
+}
+
+console.log("O: roof names and odd filenames");
+{
+  check("'Inn Roof' is a roof", isRoofName("Inn Roof") === true);
+  check("'Tavern_Roof-_03' is a roof", isRoofName("Tavern_Roof-_03") === true);
+  check("'rooftop' is a roof", isRoofName("rooftop") === true);
+  check("'Proof Room' is not a roof", isRoofName("Proof Room") === false);
+  check("safeDecode decodes", safeDecode("My%20Keep") === "My Keep");
+  check("safeDecode leaves a bad escape alone", safeDecode("100%") === "100%");
+  const p = P(["/f/100%-_00.jpg", "/f/100%-_00.json"]);
+  check("a bad escape in a filename does not abort the listing", p.length === 1, String(p.length));
 }
 
 console.log(`\n${failed === 0 ? "ALL PASS" : "FAILURES"}: ${passed} passed, ${failed} failed`);

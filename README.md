@@ -8,11 +8,11 @@ Foundry VTT v14 module that imports a Dungeon Alchemist multi-level export and c
 
 # How it Works
 
-Dungeon Alchemist exports multi-floor maps as sibling file pairs: one image and one `.json` per floor, named with a numeric suffix (`TavernMap-_0.jpg`, `TavernMap-_0.json`, `TavernMap-_1.jpg`, ...). The image is static (`.jpg`, `.jpeg`, `.png`, `.webp`) or video (`.webm`, `.mp4`, `.m4v`); video floors become animated Scene Level backgrounds.
+Dungeon Alchemist exports multi-floor maps as sibling file pairs: one image and one `.json` per floor, named with a numeric suffix (`TavernMap-_00.jpg`, `TavernMap-_00.json`, `TavernMap-_01.jpg`, ..., or `TavernMap_00.jpg` in current Dungeon Alchemist builds). The image is static (`.jpg`, `.jpeg`, `.png`, `.webp`) or video (`.webm`, `.mp4`, `.m4v`); video floors become animated Scene Level backgrounds.
 
 <p align="center"><img width="900" src="docs/importer-preview.webp"></p>
 
-The module reads all pairs in a folder, parses each JSON for walls, doors and lights, and creates one Scene where each floor is a native **Scene Level** (new in Foundry v14). Walls, doors and lights are bound to their level and only act when that floor is active.
+The module reads all pairs in a folder, parses each JSON for walls, doors and lights, and creates one Scene where each floor is a native **Scene Level** (new in Foundry v14). Walls, doors and lights are bound to their level and only act when that floor is active. Windows let sight and light through, and secret doors stay secret doors.
 
 ## Requirements
 
@@ -34,28 +34,30 @@ The toolkit's home window, GM only. Open it from the **Dungeon Alchemist — Lev
 
 Open it from the Level Manager's **Import** tab or `DA.Importer()`.
 
-#### Scene Defaults tab
-- **Copy Media to World** (off by default): copies floor images and videos into `worlds/<your-world>/da-imported/<map-name>/`, renamed to `kebab-case`.
-- The last-used door texture, door sound, background color, grid opacity and Copy Media toggle are remembered per browser.
+One window, top to bottom:
 
-#### Doors tab
-- Door texture selector (25 Foundry canvas doors, hover preview) and door sound selector (21 options, play preview).
-- Every wall exported with `door=1` gets the selected texture (with swing animation) and sound.
+#### Folder browser
+- Browse to the export folder inside the window, or use the system file picker button (which also reaches an S3 bucket). The floors found in the current folder are listed below it.
 
-#### Levels tab
+#### Floors
 - One row per floor: thumbnail (video floors show a paused first frame, animated on hover), editable name, editable bottom / top elevation. Drag to reorder.
 - **Uniform floor height** recalculates all elevations at once.
 - **Advanced** toggle: per-level **Roof** checkbox (not on the bottom floor; the level renders only when the floor directly below is active) and a **Start** button for the floor shown on first load. A filename containing "roof" pre-marks a roof.
 - Floors over ~50 MB get an amber outline (hover for the size) and a summary notification. Sizes are probed for local sources only.
 - Import is blocked if any level's bottom is >= its top.
 
+#### Scene & door options (collapsed)
+- **Copy Media to World** (off by default): copies floor images and videos into `worlds/<your-world>/da-imported/<map-name>/`, renamed to `kebab-case`.
+- Door texture selector (25 Foundry canvas doors, hover preview) and door sound selector (21 options, play preview). Every door and secret door gets the selected texture (with swing animation) and sound.
+- The last-used door texture, door sound, background color, grid opacity and Copy Media toggle are remembered per browser.
+
 ### Stairs & Portals (`DA.AddStairs()`, `DA.StairsManager()`)
 
-Linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them. Modes: **stairs** (cross-level, confirm), **teleport** (same level, confirm), **trap** (hidden, silent, one-way). A link can span more than two floors (place a footprint on each, then Done); every floor interconnects, so stepping onto any floor's stair offers every other connected floor. The **Stairs Manager** lists every link on the scene to find, edit or delete.
+Linked transit between (or within) levels, built on Foundry v14's native `teleportToken` behavior. **Add Stairs / Portal** places an entrance, then an exit on whichever level you switch to, and links them. Modes: **stairs** (cross-level, confirm), **teleport** (same level, confirm), **trap** (hidden, silent, one-way). A link can span more than two floors (place a footprint on each, then Done); every floor interconnects, so stepping onto any floor's stair offers every other connected floor. The **Stairs Manager** lists every link on the scene to find, edit or delete. Deleting one end of a link with Foundry's own Region tools removes it from the other ends' destinations.
 
 The Level Manager's **Stairs** tab has the same add and manage actions. Regions made by the old `DA.AddRegion()` appear tagged **legacy**, with **Adopt** (into a managed link) and **Remove**.
 
-The player overlay is a sight-gated hint label only: clicking it does not move the token. Using a stair is always the native walk-in teleport. A real click-to-use is #18.
+The player overlay is a sight-gated hint label only, shown on ends a token can actually use and never on either end of a trap: clicking it does not move the token. Using a stair is always the native walk-in teleport. A real click-to-use is #18.
 
 Foundry behaviors, not bugs here: two linked teleport regions can ping-pong a token, and the GM's view does not always follow a token's cross-level teleport.
 

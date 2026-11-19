@@ -4,14 +4,16 @@
  * Contract: a folder is one map; every media + `.json` pair is one floor.
  * Nothing here touches Foundry globals (tested in test/floor-grouping.test.mjs).
  *
- * The canonical suffix is `-_NN` ("Inn by the Lake-_03"); renamed exports also
- * use `_N`, `-N`, " - N" or none, so ordering tolerates any trailing number
- * while the "two maps in one folder" warning keys only off the canonical suffix.
+ * Dungeon Alchemist writes the floor suffix as `-_NN` ("Inn by the Lake-_03")
+ * or, in current builds, a plain `_NN` ("Inn by the Lake_03"); renamed exports
+ * also use `_N`, `-N`, " - N" or none, so ordering tolerates any trailing number
+ * while the "two maps in one folder" warning keys only off the two DA suffixes.
  */
 
-// Canonical Dungeon Alchemist floor suffix: "-_NN" (e.g. "Inn by the Lake-_03").
-// DA writes one media+JSON pair per floor with this exact suffix.
-const DA_FLOOR_RE = /-_(\d+)$/;
+// Dungeon Alchemist's own floor suffix: "-_NN", or a plain "_NN" in current
+// builds. The plain form counts only with exactly two digits, so a single map
+// named like "Tavern_2" keeps its number as part of its name.
+const DA_FLOOR_RE = /(?:-_|_(?=\d{2}$))(\d+)$/;
 // Generalized trailing floor number: tolerates any separator — or none — before
 // the digits ("-_3", "_3", "-3", " - 3", " 3", "3"). Used ONLY to recover floor
 // ORDER for non-standard exports; it never decides how many maps a folder holds.
@@ -51,6 +53,29 @@ export function isVideoPath(path) {
 }
 
 /**
+ * `decodeURIComponent` that returns the input unchanged when it is not valid
+ * percent-encoding (a file literally named "100%.jpg"), so one odd filename
+ * cannot abort a whole folder listing.
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+export function safeDecode(s) {
+  try { return decodeURIComponent(s); } catch (_) { return String(s); }
+}
+
+/**
+ * Whether a floor's filename marks it as a roof. "roof" must start a word, and
+ * `_` counts as a separator ("Tavern_Roof"), which `\b` alone would miss.
+ *
+ * @param {string} stem  Filename stem (no extension).
+ * @returns {boolean}
+ */
+export function isRoofName(stem) {
+  return /(^|[^a-z])roof/i.test(String(stem ?? ""));
+}
+
+/**
  * Convert an arbitrary filename stem to strict kebab-case.
  * Replaces accented/special characters with ASCII equivalents,
  * then collapses any non-alphanumeric run into a single hyphen.
@@ -68,8 +93,8 @@ export function toKebab(name) {
 }
 
 /**
- * Split a filename stem into its map "base" and floor "index". The canonical DA
- * suffix (`-_NN`) wins and marks the pair `canonical`; otherwise any trailing
+ * Split a filename stem into its map "base" and floor "index". A DA suffix
+ * (`-_NN` or `_NN`) wins and marks the pair `canonical`; otherwise any trailing
  * number (with or without a separator) is read purely for ordering; otherwise
  * there is no index.
  *
@@ -102,7 +127,7 @@ export function collectFloorPairs(files) {
   const byStem = new Map();
   const order = [];
   for (const f of files) {
-    const base = decodeURIComponent(f.split("/").pop());
+    const base = safeDecode(String(f).split("/").pop());
     const dot = base.lastIndexOf(".");
     if (dot < 0) continue;
     const stem = base.slice(0, dot);
@@ -181,13 +206,13 @@ function _lcp(strs) {
  * @returns {string}
  */
 function _folderName(path) {
-  const seg = decodeURIComponent(String(path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "").trim();
+  const seg = safeDecode(String(path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "").trim();
   return GENERIC_DIRS.test(seg) ? "" : seg;
 }
 
 /**
  * The map (scene) name. A folder is one map, so prefer a name shared by the
- * floors. Precedence: (1) the base shared by canonical `-_NN` floors — DA writes
+ * floors. Precedence: (1) the base shared by floors with a DA suffix — DA writes
  * the map name into those; (2) the browsed folder name — the folder IS the map;
  * (3) the common filename prefix; (4) the first floor's base; (5) a default.
  *
@@ -206,7 +231,7 @@ export function mapName(pairs, folderPath = "") {
 }
 
 /**
- * Distinct DA map base-names among floors carrying the CANONICAL `-_NN` suffix
+ * Distinct DA map base-names among floors carrying a DA suffix (`-_NN`, `_NN`)
  * (kebab-normalized so case/accents don't create false positives). More than one
  * entry is the genuine "two DA maps dumped in one folder" signature. Loose or
  * custom-named floors never count, since a folder is contractually one map.

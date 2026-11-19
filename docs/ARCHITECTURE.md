@@ -36,17 +36,19 @@ no-ops for a non-GM caller.
 
 - `floor-grouping.js` — pure, Foundry-free parsing of a folder of DA export
   files into ordered floor pairs (`collectFloorPairs`, `mapName`,
-  `distinctMapStems`, `isVideoPath`, `toKebab`). Covered by
+  `distinctMapStems`, `isVideoPath`, `toKebab`, `safeDecode`, `isRoofName`). Covered by
   `test/floor-grouping.test.mjs`, run with plain `node`.
 - `da-importer.js` — `importFolder(...)` turns those pairs into one
   `Scene.create` call: one native Scene Level per floor, with walls, doors
   and lights bound to their floor via each document's `levels` field. Copies
   media into `worlds/<world>/da-imported/<map>/` when the "Copy Media"
-  toggle is on. Its pure `_senseEnum` (DA wall sense to Foundry enum) is
-  covered by `test/da-importer-sense.test.mjs`.
-- `importer-dialog.js` — the tabbed `DAImporterDialog` (ApplicationV2 +
-  Handlebars) — Scene Defaults / Doors / Levels tabs, an in-window folder
-  browser, per-floor thumbnails and elevation editing, and the large-media
+  toggle is on. Its pure wall mapping (`_senseEnum`, `_mapWall`: DA's one
+  `sense` value drives both sight and light; door and secret door are kept)
+  is covered by `test/da-importer-sense.test.mjs`.
+- `importer-dialog.js` — the one-page `DAImporterDialog` (ApplicationV2 +
+  Handlebars): an in-window folder browser (local sources, or an S3 bucket
+  reached through the system picker), per-floor thumbnails and elevation
+  editing, a collapsed "Scene & door options" section, and the large-media
   warning (`MEDIA_SIZE_WARN_BYTES` in `constants.js`).
 - `floor-rows.js` — shared thumbnail-building helper used by both the
   importer dialog and the Level Manager.
@@ -55,17 +57,26 @@ no-ops for a non-GM caller.
 
 `DALevelManager` (ApplicationV2) is the home window (`DA.open()`): floors
 top-first on the left, the selected floor's details and its stairs on the
-right. Tabs: Floors, Import, Stairs.
+right. Tabs: Floors, Import, Stairs. With no scene open, or a scene with no
+floors, it shows the way into the importer instead. An open Level Manager or
+Stairs Manager re-renders when floors, regions or their behaviors change
+(`main.js`), unless a field in it is being typed in.
 
-Floor edits go through `scene-levels-edit.js`, which always writes the
-**complete** `scene.levels` array back (`scene.update({ levels })`) and reads
-it back to check nothing was dropped:
+Floor edits go through `scene-levels-edit.js`. A Level is an embedded Scene
+document, so each edit is an embedded create / update / delete that names
+only the floor it touches; a build without embedded Level documents gets a
+whole-array `scene.update({ levels })` instead, checked afterwards for
+dropped floors:
 - `updateLevel`, `moveLevel` (swap elevation band with the neighbor),
   `setStartLevel`, `replaceLevelImage`, `addLevel`, `removeLevel`.
 - Writes are serialized through a promise chain (`_writeChain`) so two edits
   fired close together can't clobber each other with a stale read.
-- Deleting a level or editing cross-level visibility is **not** reimplemented
-  here — `openNativeLevels()` opens Foundry's native Levels tab for that.
+- `removeLevel` moves the start floor to a surviving floor before it deletes.
+- The start floor is read with `getInitialLevelId` (`levels.js`):
+  `scene.initialLevel` is the Level document, the stored value is its id.
+- Editing cross-level visibility is **not** reimplemented here —
+  `openNativeLevels()` opens Foundry's native Levels tab for that.
+- Covered by `test/scene-levels-edit.test.mjs` against a stand-in Scene.
 
 Regions/portals bind to a floor by its Level `_id`, so renaming or
 re-elevating a floor keeps its stairs attached.
@@ -85,7 +96,9 @@ supplies what native lacks — linking, a manager UI, and overlays.
   silent, one-way). A link is stamped as a
   `flags["dungeon-alchemist-toolkit"].portal` object (`{linkId, label, mode,
   role}`) on each participating Region. Also handles legacy-region adoption
-  (`adoptLegacyRegion`) for stairs made by the old `DA.AddRegion` tool.
+  (`adoptLegacyRegion`) for stairs made by the old `DA.AddRegion` tool, and
+  `unlinkDeletedPortal`, which the active GM runs on `deleteRegion` to take a
+  deleted end out of the other ends' destinations.
 - `portal-wizard.js` — `addStairsInteractive` / `startAddStairs` run the
   guided placement (pick options → place entrance → switch floor → place
   exit, via a pinned `PlacementBanner`); `startLinkRegions` links two
@@ -98,7 +111,8 @@ supplies what native lacks — linking, a manager UI, and overlays.
   "↑/↓ Floor" badge when the partner is elsewhere. Redraws on events
   (region CRUD, level change), never per frame.
 - `portal-player-overlay.js` — a sight-gated "Stairs" hint label for players
-  near a visible portal; it is a hint only — the move itself is native
+  near a visible portal end that has an active transit behavior (never either
+  end of a trap); it is a hint only — the move itself is native
   `teleportToken` firing on region entry.
 - `portal-banner.js`, `portal-color.js`, `canvas-label.js` — supporting UI:
   the placement banner, a stable per-link color, and the shared PIXI

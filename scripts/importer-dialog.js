@@ -1,5 +1,6 @@
 import { importFolder, collectFloorPairs } from "./da-importer.js";
 import { buildThumb as _buildThumbEl } from "./floor-rows.js";
+import { isRoofName } from "./floor-grouping.js";
 import { FLOOR_HEIGHT, MODULE_ID, SETTING_IMPORTER_DEFAULTS, MEDIA_SIZE_WARN_BYTES } from "./constants.js";
 import { requireGM, t } from "./util.js";
 
@@ -34,6 +35,12 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
   _dirs = [];
   /** Guards the one-time auto-browse of the source root on first render. */
   _browsedOnce = false;
+  /** S3 bucket the folder lives in; "" for the local sources. */
+  _bucket = "";
+  /** Counts browses, so a slow listing can't replace a newer one. */
+  _browseGen = 0;
+  /** True while an import runs, so a second click can't create a second scene. */
+  _importing = false;
 
   static DEFAULT_OPTIONS = {
     id: "da-importer",
@@ -76,8 +83,8 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       current: this._cwd || "",
       callback: async (path) => {
         this._source = picker.activeSource ?? this._source;
-        const srcSel = this.element?.querySelector("select[name='sourceSelect']");
-        if (srcSel) srcSel.value = this._source;
+        this._bucket = this._source === "s3" ? (picker.source?.bucket ?? "") : "";
+        this._syncSourceSelect();
         await this._browseTo(path);
       }
     });
@@ -105,13 +112,15 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       ui.notifications?.warn?.("In-window browsing isn't available on this build — use the system picker button.");
       return;
     }
+    const gen = ++this._browseGen;
     let listing;
     try {
-      listing = await FilePicker.browse(this._source, path ?? "");
+      listing = await FilePicker.browse(this._source, path ?? "", this._bucket ? { bucket: this._bucket } : {});
     } catch (err) {
-      ui.notifications?.warn?.(`Can't open that folder: ${err.message}`);
+      if (gen === this._browseGen) ui.notifications?.warn?.(`Can't open that folder: ${err.message}`);
       return;
     }
+    if (gen !== this._browseGen) return;   // a newer browse has taken over
     this._cwd = listing.target ?? path ?? "";
     this._dirs = (listing.dirs ?? []).slice().sort((a, b) => a.localeCompare(b));
 
@@ -133,7 +142,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     // Heuristic: a floor whose filename contains "roof" is pre-marked as a Roof
     // (a default only — overridable under "Advanced"). Only fires in folders that
     // actually contain DA floors, so plain navigation stays quiet.
-    const roofs = this._floorPairs.filter((p) => /\broof/i.test(p.stem));
+    const roofs = this._floorPairs.filter((p) => isRoofName(p.stem));
     if (roofs.length) {
       ui.notifications.info(t("DAT.Importer.RoofDetected", { count: roofs.length, names: roofs.map((p) => p.stem).join(", ") }));
     }
@@ -192,9 +201,26 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     }
 
     const importBtn = this.element.querySelector('[data-action="import"]');
-    if (importBtn) importBtn.disabled = n === 0;
+    if (importBtn) importBtn.disabled = n === 0 || this._importing;
     const importLabel = this.element.querySelector(".da-import-btn-label");
     if (importLabel) importLabel.textContent = n ? `Import ${n} floor${n === 1 ? "" : "s"}` : "Import";
+  }
+
+  /**
+   * Point the source dropdown at the source being browsed. A source the
+   * dropdown doesn't list (S3, reached through the system picker) gets its own
+   * entry so the dropdown never shows the wrong one.
+   */
+  _syncSourceSelect() {
+    const srcSel = this.element?.querySelector("select[name='sourceSelect']");
+    if (!srcSel) return;
+    if (![...srcSel.options].some((o) => o.value === this._source)) {
+      const opt = document.createElement("option");
+      opt.value = this._source;
+      opt.textContent = this._source === "s3" ? "S3" : this._source;
+      srcSel.appendChild(opt);
+    }
+    srcSel.value = this._source;
   }
 
   /**
@@ -343,9 +369,10 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     // In-window folder browser: switching source re-browses from that source's root.
     const srcSel = this.element.querySelector("select[name='sourceSelect']");
     if (srcSel) {
-      srcSel.value = this._source;
+      this._syncSourceSelect();
       srcSel.addEventListener("change", () => {
         this._source = srcSel.value;
+        if (this._source !== "s3") this._bucket = "";
         this._browseTo("");
       });
     }
@@ -669,7 +696,7 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
       // The bottom floor (index 0) can't be a roof — it has no floor below to reveal.
       roofCheckbox.disabled = i === 0;
       // Preserve an explicit choice; otherwise pre-tick when the filename says "roof".
-      roofCheckbox.checked = i > 0 && (st ? !!st.isRoof : /\broof/i.test(pair.stem));
+      roofCheckbox.checked = i > 0 && (st ? !!st.isRoof : isRoofName(pair.stem));
 
       const roofTrack = document.createElement("span");
       roofTrack.className = "da-toggle-track";
@@ -731,9 +758,12 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
   static async #onImport(_event, _target) {
     if (!requireGM(t("DAT.Importer.GMOnly"))) return;
-    const folder = this.element.querySelector("input[name='folder']")?.value?.trim();
-    const source = this.element.querySelector("input[name='source']")?.value?.trim() || "data";
-    if (!folder) {
+    if (this._importing) return;
+    // The folder may be the source root (an empty path), so "have floors been
+    // found" is the test for being ready, not "is there a folder path".
+    const folder = this._cwd ?? "";
+    const source = this._source || "data";
+    if (!this._floorPairs.length) {
       ui.notifications.warn(t("DAT.Importer.NoFolder"));
       return;
     }
@@ -782,12 +812,17 @@ export class DAImporterDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     // whole call so any unexpected failure (file I/O, mapping) surfaces a toast
     // instead of an unhandled rejection that leaves the dialog in a dead state.
     let scene;
+    this._importing = true;
+    this._renderBrowser();
     try {
-      scene = await importFolder({ source, path: folder, pairs, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides, initialLevelIndex });
+      scene = await importFolder({ source, path: folder, bucket: this._bucket, pairs, backgroundColor, gridAlpha, copyImages, doorTexture, doorSound, levelOverrides, initialLevelIndex });
     } catch (err) {
       ui.notifications.error(t("DAT.Importer.ImportFailed", { error: err.message }));
       console.error(err);
       return;
+    } finally {
+      this._importing = false;
+      this._renderBrowser();
     }
     if (scene) this.close();
   }

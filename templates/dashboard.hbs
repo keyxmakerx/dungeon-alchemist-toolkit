@@ -116,6 +116,9 @@
   {{/if}}
 
   {{else}}
-  <p class="da-dash-empty">{{localize "DAT.Dash.NoScene"}}</p>
+  <div class="da-dash-panel da-dash-import-tab">
+    <p class="da-dash-empty">{{#if sceneName}}{{localize "DAT.Dash.NoLevels" name=sceneName}}{{else}}{{localize "DAT.Dash.NoScene"}}{{/if}}</p>
+    <button type="button" class="da-dash-btn da-dash-import-go" data-action="importFolder"><i class="fa-solid fa-folder-open"></i> {{localize "DAT.Dash.ImportOpen"}}</button>
+  </div>
   {{/if}}
 </div>

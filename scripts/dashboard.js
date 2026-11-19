@@ -9,10 +9,11 @@
 
 import { MODULE_ID } from "./constants.js";
 import { requireGM, t } from "./util.js";
-import { getSceneLevels, getCurrentLevelId, viewLevel } from "./levels.js";
+import { getSceneLevels, getCurrentLevelId, getInitialLevelId, viewLevel } from "./levels.js";
 import { getPortalLinkGroups, getScenePortals, deletePortalLink, bindPortals, regionCenter, regionLevelId, regionLevelIds, adoptLegacyRegion, LEGACY_LINK_PREFIX } from "./portal/portal-core.js";
 import { updateLevel, setStartLevel, moveLevel, openNativeLevels, replaceLevelImage, addLevel, removeLevel } from "./scene-levels-edit.js";
 import { buildThumb } from "./floor-rows.js";
+import { safeDecode } from "./floor-grouping.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -79,7 +80,8 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!validIds.has(selectedId)) selectedId = levelsAsc[0]._id;
     this._selectedId = selectedId;
 
-    const startId = scene.initialLevel;
+    // The start floor is stored as a level id; the live property is the Level itself.
+    const startId = getInitialLevelId(scene);
     const levelName = (id) => levelsAsc.find((l) => l._id === id)?.name ?? "—";
 
     // Floors list, top-floor first for a building-like reading order.
@@ -271,7 +273,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       current: "",
       callback: async (path) => {
         if (!path) return;   // dialog closed/cancelled with no pick — don't append a blank floor
-        const name = decodeURIComponent(path.split("/").pop().replace(/\.[^.]+$/, ""));
+        const name = safeDecode(path.split("/").pop().replace(/\.[^.]+$/, ""));
         const newId = await addLevel(scene, { src: path, name });
         if (newId) this._selectedId = newId;
         this.render();

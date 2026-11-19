@@ -10,13 +10,13 @@
 
 import { FLOOR_HEIGHT } from "./constants.js";
 import { requireGM, t } from "./util.js";
-import { collectFloorPairs, distinctMapStems, mapName, isVideoPath, toKebab } from "./floor-grouping.js";
+import { collectFloorPairs, distinctMapStems, mapName, isVideoPath, toKebab, safeDecode } from "./floor-grouping.js";
 
 // Folder-to-floor grouping lives in floor-grouping.js; re-exported for
 // floor-rows.js (isVideoPath) and importer-dialog.js (collectFloorPairs).
 export { isVideoPath, collectFloorPairs, distinctMapStems };
-// _senseEnum is pure and unit-tested directly (test/da-importer-sense.test.mjs).
-export { _senseEnum };
+// The wall mapping is pure and unit-tested directly (test/da-importer-sense.test.mjs).
+export { _senseEnum, _mapWall };
 
 /**
  * Ensure a unique subdirectory exists under `worlds/<worldId>/da-imported/`.
@@ -84,15 +84,16 @@ async function _copyMedia(srcUrl, destFolder, kebabStem, ext) {
  * Import a Dungeon Alchemist folder as a single v14 Scene with Levels.
  *
  * @param {object} params
- * @param {string} params.source                         FilePicker source (e.g. "data", "public").
+ * @param {string} params.source                         FilePicker source (e.g. "data", "public", "s3").
  * @param {string} params.path                           Folder path inside that source.
+ * @param {string} [params.bucket]                       S3 bucket, when the source is "s3".
  * @param {string} [params.backgroundColor="#000000"]   Scene background fill color.
  * @param {number} [params.gridAlpha=0]                 Grid overlay opacity (0–1).
  * @param {Array<{name?:string,bottom?:number,top?:number,isRoof?:boolean}>} [params.levelOverrides]
  *   Per-floor overrides for name, elevation, and roof behavior.
  * @returns {Promise<Scene|null>}                        The created Scene, or null on abort.
  */
-export async function importFolder({ source, path, pairs = null, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
+export async function importFolder({ source, path, bucket = "", pairs = null, backgroundColor = "#000000", gridAlpha = 0, copyImages = false, doorTexture = "", doorSound = "", levelOverrides = [], initialLevelIndex = 0 }) {
   if (!requireGM(t("DAT.Importer.GMOnly"))) return null;
   const FilePicker = foundry.applications.apps.FilePicker.implementation;
 
@@ -103,7 +104,7 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
   if (!Array.isArray(pairs) || !pairs.length) {
     let listing;
     try {
-      listing = await FilePicker.browse(source, path);
+      listing = await FilePicker.browse(source, path, bucket ? { bucket } : {});
     } catch (err) {
       ui.notifications.error(t("DAT.Importer.BrowseFailed", { path, error: err.message }));
       return null;
@@ -179,7 +180,7 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
     for (let i = 0; i < floors.length; i++) {
       const f = floors[i];
       const originalUrl = f.media;
-      const origFilename = decodeURIComponent(originalUrl.split("/").pop());
+      const origFilename = safeDecode(originalUrl.split("/").pop());
       const dotIdx = origFilename.lastIndexOf(".");
       const ext = dotIdx >= 0 ? origFilename.slice(dotIdx + 1).toLowerCase() : "jpg";
       const kebabFilename = toKebab(f.stem);
@@ -240,7 +241,7 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
         alphaThreshold: 0.75
       },
       foreground: { src: null, tint: "#ffffff", alphaThreshold: 0.75 },
-      fog: { src: null, tint: "#ffffff" },
+      fog: { src: null },
       textures: {
         anchorX: 0.5, anchorY: 0.5,
         fit: "fill", scaleX: 1, scaleY: 1
@@ -298,11 +299,9 @@ export async function importFolder({ source, path, pairs = null, backgroundColor
       units: typeof first.gridUnits === "string" ? first.gridUnits : "ft"
     },
     tokenVision: true,
-    // Fog omitted — inherit the v14 default. v14 replaced the old numeric `fog.mode`
-    // with `fog.exploration` modes (Disabled/Individual/Shared), so emitting `mode`
-    // is not a valid v14 field and can fail Scene.create validation.
+    // Fog is left out so the scene takes the world's default fog settings.
     environment: {
-      darknessLevel: first.darkness ?? 0,
+      darknessLevel: Number.isFinite(first.darkness) ? Math.min(Math.max(first.darkness, 0), 1) : 0,
       darknessLock: false,
       globalLight: {
         enabled: !!first.globalLight,
@@ -381,8 +380,11 @@ function _moveEnum(v) {
 /**
  * Map a DA wall into a v14 WallDocument source. Level binding uses the
  * `levels` Set field (SceneLevelsSetField) that accepts an array of Level ids.
- * When the wall is a standard door (door=1) and the user configured a texture
- * or sound in the dialog, those are stamped onto the document here.
+ *
+ * DA has one `sense` value for both sight and light, so `light` follows it: a
+ * window (sense 0) lets light through as well as sight. A secret door
+ * (door=2) stays a secret door. When the wall is a door and the user
+ * configured a texture or sound in the dialog, those are stamped on here.
  *
  * @param {object} daWall
  * @param {string} levelId
@@ -394,16 +396,19 @@ function _mapWall(daWall, levelId, doorTexture = "", doorSound = "") {
   // Skip malformed walls: `c` must be four finite numbers, or v14's WallDocument
   // schema rejects the payload and aborts the whole Scene.create (losing every floor).
   if (!Array.isArray(daWall?.c) || daWall.c.length !== 4 || !daWall.c.every(Number.isFinite)) return null;
+  const door = daWall.door === 1 || daWall.door === 2 ? daWall.door : 0;
+  const sense = _senseEnum(daWall.sense ?? 1);
   const wallDoc = {
     c: daWall.c,
     move:  _moveEnum(daWall.move ?? 1),
-    sight: _senseEnum(daWall.sense ?? 1),
+    sight: sense,
+    light: sense,
     sound: _senseEnum(daWall.sound ?? 1),
-    door:  daWall.door === 1 ? 1 : 0,
+    door,
     ds: 0,
     levels: [levelId]
   };
-  if (daWall.door === 1) {
+  if (door) {
     if (doorTexture) wallDoc.animation = { texture: doorTexture, type: "swing" };
     if (doorSound)   wallDoc.doorSound  = doorSound;
   }

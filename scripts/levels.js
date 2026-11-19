@@ -27,6 +27,22 @@ export function getSceneLevels(scene) {
 }
 
 /**
+ * The id of the scene's start floor, or null. v14 stores `initialLevel` as an id
+ * and hands it back as the Level document, so read the stored id first and
+ * accept either shape.
+ *
+ * @param {Scene} scene
+ * @returns {string|null}
+ */
+export function getInitialLevelId(scene) {
+  const stored = scene?._source?.initialLevel;
+  if (typeof stored === "string" && stored) return stored;
+  const value = scene?.initialLevel;
+  if (typeof value === "string") return value || null;
+  return value?.id ?? value?._id ?? null;
+}
+
+/**
  * Detect the level the user is currently viewing, via the documented v14
  * surfaces: the canvas's viewed level, then the user's, then the scene's
  * configured initial level, then the bottom-most floor. Each is probed
@@ -41,10 +57,10 @@ export function getCurrentLevelId(scene) {
   const levels = getSceneLevels(scene);
   const validIds = new Set(levels.map((l) => l._id));
   const candidates = [
-    canvas?.level?.id ?? canvas?.level?._id,
-    canvas?._viewOptions?.level,
-    game.user?.viewedLevel,
-    scene.initialLevel
+    globalThis.canvas?.level?.id ?? globalThis.canvas?.level?._id,
+    globalThis.canvas?._viewOptions?.level,
+    globalThis.game?.user?.viewedLevel,
+    getInitialLevelId(scene)
   ];
   // Only accept a candidate that is actually a level on this scene; a stale/initial
   // id (e.g. a deleted level) would otherwise mislead callers.
