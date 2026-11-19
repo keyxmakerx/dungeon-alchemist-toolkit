@@ -527,3 +527,33 @@ export async function adoptLegacyRegion(scene, linkId) {
   });
   return newLinkId;
 }
+
+/**
+ * After one end of a link is deleted by any means (Foundry's own Region tools
+ * included), take it out of the other ends' destinations, so no stair is left
+ * offering a floor that is gone. An end with nowhere left to go loses its
+ * teleport behavior and stays on the scene as an unfinished stair.
+ *
+ * @param {Scene} scene
+ * @param {string} deletedUuid  UUID of the Region that was deleted.
+ * @param {string} linkId       The link it belonged to.
+ * @returns {Promise<number>}   How many surviving ends were changed.
+ */
+export async function unlinkDeletedPortal(scene, deletedUuid, linkId) {
+  if (!game.user?.isGM || !scene || !deletedUuid || !linkId) return 0;
+  let changed = 0;
+  for (const { region, portal } of getScenePortals(scene)) {
+    if (portal?.linkId !== linkId) continue;
+    for (const behavior of getRegionBehaviors(region)) {
+      if (behavior?.type !== "teleportToken") continue;
+      const stored = behavior._source?.system?.destinations ?? Array.from(behavior.system?.destinations ?? []);
+      const dests = Array.from(stored ?? []).map((d) => (typeof d === "string" ? d : d?.uuid)).filter(Boolean);
+      if (!dests.includes(deletedUuid)) continue;
+      const remaining = dests.filter((d) => d !== deletedUuid);
+      if (remaining.length) await behavior.update({ "system.destinations": remaining });
+      else await region.deleteEmbeddedDocuments("RegionBehavior", [behavior.id]);
+      changed++;
+    }
+  }
+  return changed;
+}

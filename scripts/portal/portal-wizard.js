@@ -1,15 +1,19 @@
 /**
- * Stair / Portal creation flows.
+ * Making stairs.
  *
- * `addStairsInteractive` asks for type/label/direction, then runs a **guided,
- * persistent placement**: a pinned banner walks the GM through placing the
- * entrance and the exit, with an in-flow floor picker (so the bound level is the
- * one the GM explicitly chose, not an inferred one) and a ghost of the entrance
- * while the exit is placed. The banner/ghost/picker are guarded enhancements — if
- * any is unavailable the core two-pick→link flow still completes (with toasts).
+ * `startStairwell` is the usual way: drag the stair once, tick the floors it
+ * serves, and it is placed at the same spot on each and joined. Dungeon
+ * Alchemist builds every floor on one footprint, so a staircase nearly always
+ * lines up.
  *
- * `startLinkRegions` links two already-selected Regions directly. All flows are
- * GM-gated and built on the native `teleportToken` behavior (see portal-core.js).
+ * `startAddStairs` is the guided way, for a stair whose ends are in different
+ * places, a teleport on one floor, or a trap: a banner walks the GM through
+ * placing each end on a floor picked in the banner, with the ends already
+ * placed left as ghosts. The banner, ghosts and picker are extras; without
+ * them the flow still completes with toasts.
+ *
+ * `startLinkRegions` joins two Regions that are already selected. Every flow
+ * is GM-gated and built on the native `teleportToken` behavior (portal-core.js).
  */
 
 import { createLinkedStairs, linkExistingRegions, getPortalFlag, getScenePortals, addPortalsToLink } from "./portal-core.js";
@@ -39,29 +43,31 @@ function _restoreCamera(cam) {
   try { canvas.pan(cam); } catch (_) { /* ignore */ }
 }
 
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 /**
- * Small DialogV2 to choose the portal type / label / directionality before
- * placing. Resolves to `{mode,label,twoWay}`, or null if cancelled.
+ * Ask what kind of stair this is, what it is called and whether it leads back.
+ * Resolves to `{mode,label,twoWay}`, or null if cancelled.
+ *
+ * @param {string} [label]  Name to start with.
  */
-async function promptStairsOptions() {
+async function promptStairsOptions(label = t("DAT.Stairs.DefaultName")) {
+  const kinds = ["stairs", "teleport", "trap"]
+    .map((m, i) => `<option value="${m}"${i === 0 ? " selected" : ""}>${esc(t(`DAT.Stairs.KindLong.${m}`))}</option>`).join("");
   const content = `
   <div class="da-stairs-opts">
     <div class="form-group">
-      <label>Type</label>
-      <select name="mode">
-        <option value="stairs" selected>Stairs — cross-level, confirm prompt</option>
-        <option value="teleport">Teleport — same map, confirm prompt</option>
-        <option value="trap">Trap — silent, hidden, one-way</option>
-      </select>
+      <label>${esc(t("DAT.Stairs.FieldKind"))}</label>
+      <select name="mode">${kinds}</select>
     </div>
     <div class="form-group">
-      <label>Label (shown to players)</label>
-      <input type="text" name="label" value="Stairs" />
+      <label>${esc(t("DAT.Stairs.FieldName"))}</label>
+      <input type="text" name="label" value="${esc(label)}" />
     </div>
     <label class="da-stairs-opts-check">
-      <input type="checkbox" name="twoWay" checked /> Two-way (destinations link back)
+      <input type="checkbox" name="twoWay" checked /> ${esc(t("DAT.Stairs.FieldTwoWay"))}
     </label>
-    <p class="hint">Place the first floor, then keep adding floors and click <strong>Done</strong> — a spiral staircase can connect every floor, and stepping on it asks which floor to go to.</p>
+    <p class="hint">${esc(t("DAT.Stairs.NewHint"))}</p>
   </div>`;
   try {
     return await foundry.applications.api.DialogV2.prompt({
@@ -69,12 +75,11 @@ async function promptStairsOptions() {
       content,
       ok: {
         label: t("DAT.Stairs.BtnPlace"),
-        icon: "fas fa-stairs",
         callback: (_event, button) => {
           const form = button?.form;
           return {
             mode: form?.elements?.mode?.value || "stairs",
-            label: form?.elements?.label?.value?.trim() || "Stairs",
+            label: form?.elements?.label?.value?.trim() || t("DAT.Stairs.DefaultName"),
             twoWay: form?.elements?.twoWay?.checked ?? true
           };
         }
@@ -87,22 +92,25 @@ async function promptStairsOptions() {
 }
 
 /**
- * Interactive create: ask for type/label/direction, then run the guided
- * placement. This is what `DA.AddStairs()` (no args) and the Stairs Manager's Add call.
+ * Ask for the kind and name, then place each end by hand. This is where the
+ * stairwell box sends a stair whose ends are in different places.
  *
  * @param {Scene} [scene=canvas.scene]
+ * @param {object} [seed]
+ * @param {{rect:object, levelId:string}} [seed.entrance]  An end already drawn.
+ * @param {string} [seed.label]                             Name already typed.
  * @returns {Promise<void>}
  */
-export async function addStairsInteractive(scene = canvas?.scene) {
+export async function addStairsInteractive(scene = canvas?.scene, { entrance = null, label } = {}) {
   if (!requireGM()) return;
   if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
   if (!getSceneLevels(scene).length) {
     ui.notifications.warn(t("DAT.Stairs.NoLevels"));
     return;
   }
-  const opts = await promptStairsOptions();
+  const opts = await promptStairsOptions(label);
   if (!opts) { ui.notifications.info(t("DAT.Stairs.Cancelled")); return; }
-  await startAddStairs(scene, opts);
+  await startAddStairs(scene, { ...opts, entrance });
 }
 
 /**
@@ -116,9 +124,11 @@ export async function addStairsInteractive(scene = canvas?.scene) {
  * @param {"stairs"|"teleport"|"trap"} [opts.mode="stairs"]
  * @param {string} [opts.label="Stairs"]
  * @param {boolean} [opts.twoWay=true]
+ * @param {string} [opts.existingLinkId]  Add floors to this stair instead of making one.
+ * @param {{rect:object, levelId:string}} [opts.entrance]  The first end, if already drawn.
  * @returns {Promise<void>}
  */
-export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true, existingLinkId = null } = {}) {
+export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", label = t("DAT.Stairs.DefaultName"), twoWay = true, existingLinkId = null, entrance = null } = {}) {
   if (!requireGM()) return;
   if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
   const levels = getSceneLevels(scene);
@@ -210,7 +220,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
   // Place a footprint on each floor the stair connects. Start with 2 (entrance +
   // one destination); the GM keeps adding floors and clicks Done to finish, so a
   // spiral staircase can span the whole building. Each entry is {rect, levelId}.
-  const captured = [];
+  const captured = entrance?.rect && entrance.levelId ? [{ rect: entrance.rect, levelId: entrance.levelId }] : [];
   let doneClicked = false;
   banner.onDone = () => { doneClicked = true; currentCtrl?.abort(); };
 
@@ -231,11 +241,11 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       const title = existingLinkId
         ? t("DAT.Stairs.StepAddFloor", { label, count: captured.length })
         : (isFirst
-          ? t("DAT.Stairs.StepEntrance", { mode, label })
-          : t("DAT.Stairs.StepMore", { label, count: captured.length }));
+          ? t("DAT.Stairs.StepEntrance", { label })
+          : t("DAT.Stairs.StepMore", { label, step: captured.length + 1, count: captured.length }));
       const hint = t("DAT.Stairs.StepHint");
       banner.setStep(title, hint);
-      banner.showLevelPicker(levels, levelId, existingLinkId ? "Floor to add" : (isFirst ? "Entrance floor" : "Floor"));
+      banner.showLevelPicker(levels, levelId, t(existingLinkId ? "DAT.Stairs.PickAdd" : (isFirst ? "DAT.Stairs.PickEntrance" : "DAT.Stairs.PickFloor")));
       banner.showBack(!isFirst);
       banner.showDone(canFinish);
       banner.onPickLevel = (id) => { levelId = id; switchViewedLevel(id).catch(() => {}); };
@@ -247,7 +257,7 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
       const ghosts = ghostRects.map((r) => drawGhostRect(r)).filter(Boolean);
       removeGhost = () => ghosts.forEach((g) => { try { g(); } catch (_) { /* ignore */ } });
 
-      if (!banner.el) ui.notifications.info(`${title} — ${hint}`);
+      if (!banner.el) ui.notifications.info(`${title}. ${hint}`);
 
       currentCtrl = new AbortController();
       goBack = false;
@@ -295,6 +305,159 @@ export async function startAddStairs(scene = canvas?.scene, { mode = "stairs", l
   }
 }
 
+/** Where a point on the map is on the screen, or null if that can't be told. */
+function screenPoint(x, y) {
+  try {
+    const p = canvas.clientCoordinatesFromCanvas({ x, y });
+    if (Number.isFinite(p?.x) && Number.isFinite(p?.y)) return p;
+  } catch (_) { /* fall through */ }
+  return null;
+}
+
+/**
+ * The stairwell box: a name and a tick per floor. The floor the stair was
+ * drawn on is always in; its neighbours start ticked.
+ *
+ * @param {object[]} levels   Floors, bottom-first.
+ * @param {string} levelId    Floor the stair was drawn on.
+ * @param {{x:number,y:number,width:number,height:number}} rect
+ * @returns {Promise<{action:"place"|"other", label:string, floors:string[]}|null>}
+ */
+async function promptStairwell(levels, levelId, rect) {
+  const here = Math.max(0, levels.findIndex((l) => l._id === levelId));
+  const rows = levels.map((l, i) => ({ l, i })).reverse().map(({ l, i }) => {
+    const on = Math.abs(i - here) <= 1;
+    const fixed = i === here;
+    const name = esc(l.name || t("DAT.Dash.UnnamedFloor"));
+    const note = fixed ? ` <span class="da-muted">${esc(t("DAT.Stairs.WellHere"))}</span>` : "";
+    return `<label><input type="checkbox" name="floor" value="${esc(l._id)}"${on ? " checked" : ""}${fixed ? " disabled" : ""} /> ${name}${note}</label>`;
+  }).join("");
+  const content = `
+  <div class="da-stairwell">
+    <div class="form-group">
+      <label for="da-well-name">${esc(t("DAT.Stairs.FieldName"))}</label>
+      <input type="text" id="da-well-name" name="label" value="${esc(t("DAT.Stairs.DefaultName"))}" />
+    </div>
+    <fieldset>
+      <legend>${esc(t("DAT.Stairs.WellFloors"))}</legend>
+      ${rows}
+    </fieldset>
+    <p class="hint">${esc(t("DAT.Stairs.WellHint"))}</p>
+  </div>`;
+
+  const read = (form) => ({
+    label: form?.elements?.label?.value?.trim() || t("DAT.Stairs.DefaultName"),
+    floors: Array.from(form?.querySelectorAll?.('input[name="floor"]:checked') ?? []).map((el) => el.value)
+  });
+
+  // Beside the stair when that can be worked out; Foundry's own spot otherwise.
+  const width = 440;
+  const position = { width };
+  const right = screenPoint(rect.x + rect.width, rect.y);
+  const left = screenPoint(rect.x, rect.y);
+  if (right && left) {
+    const fitsRight = right.x + 16 + width <= window.innerWidth - 8;
+    position.left = Math.max(8, fitsRight ? right.x + 16 : left.x - width - 16);
+    position.top = Math.max(8, Math.min(right.y - 40, window.innerHeight - 420));
+  }
+
+  try {
+    return await foundry.applications.api.DialogV2.wait({
+      window: { title: t("DAT.Stairs.WellTitle") },
+      classes: ["da-stairwell-dialog"],
+      position,
+      content,
+      buttons: [
+        { action: "place", label: t("DAT.Stairs.WellPlace", { count: 0 }), default: true, callback: (_e, btn) => ({ action: "place", ...read(btn?.form) }) },
+        { action: "other", label: t("DAT.Stairs.WellOther"), callback: (_e, btn) => ({ action: "other", ...read(btn?.form) }) },
+        { action: "cancel", label: t("DAT.Stairs.BtnCancel"), callback: () => null }
+      ],
+      // The Place button says how many floors, and needs at least two.
+      render: (_event, dialog) => {
+        const root = dialog?.element ?? dialog;
+        if (!(root instanceof HTMLElement)) return;
+        const place = root.querySelector('button[data-action="place"]');
+        const sync = () => {
+          const count = root.querySelectorAll('input[name="floor"]:checked').length;
+          if (!place) return;
+          (place.querySelector("span") ?? place).textContent = t("DAT.Stairs.WellPlace", { count });
+          place.disabled = count < 2;
+        };
+        root.addEventListener("change", sync);
+        sync();
+      },
+      rejectClose: false
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * A stairwell in one go: drag the stair once on the floor being viewed, tick
+ * the floors it serves, and it is placed at the same spot on each ticked floor
+ * and joined. A floor it passes without stopping is left unticked. A stair
+ * whose ends are in different places goes to the guided flow from the same box.
+ *
+ * @param {Scene} [scene=canvas.scene]
+ * @returns {Promise<void>}
+ */
+export async function startStairwell(scene = canvas?.scene) {
+  if (!requireGM()) return;
+  if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
+  const levels = getSceneLevels(scene);
+  if (!levels.length) { ui.notifications.warn(t("DAT.Stairs.NoLevels")); return; }
+  // One floor has nothing to stack a stairwell on; a teleport is still possible.
+  if (levels.length < 2) return addStairsInteractive(scene);
+  if (_placementActive) { ui.notifications.warn(t("DAT.Stairs.InProgress")); return; }
+
+  _placementActive = true;
+  const levelId = getCurrentLevelId(scene) ?? levels[0]._id;
+  const floor = levels.find((l) => l._id === levelId)?.name || t("DAT.Dash.UnnamedFloor");
+
+  const banner = new PlacementBanner();
+  try { banner.mount(); } catch (_) { /* a toast says the same below */ }
+  const title = t("DAT.Stairs.WellDrag", { floor });
+  const hint = t("DAT.Stairs.WellDragHint");
+  banner.setStep(title, hint);
+  if (!banner.el) ui.notifications.info(`${title}. ${hint}`);
+
+  const ctrl = new AbortController();
+  banner.onCancel = () => ctrl.abort();
+  const onTearDown = () => ctrl.abort();
+  Hooks.on("canvasTearDown", onTearDown);
+
+  let rect = null;
+  try { rect = await pickCanvasRectangle({ signal: ctrl.signal }); } catch (_) { rect = null; }
+  Hooks.off("canvasTearDown", onTearDown);
+  banner.destroy();
+  if (!rect) { _placementActive = false; ui.notifications.info(t("DAT.Stairs.Cancelled")); return; }
+
+  // The drawn spot stays marked while the floors are ticked.
+  const removeGhost = drawGhostRect(rect);
+  let choice = null;
+  try { choice = await promptStairwell(levels, levelId, rect); }
+  finally {
+    try { removeGhost(); } catch (_) { /* already gone */ }
+    _placementActive = false;
+  }
+  if (!choice) { ui.notifications.info(t("DAT.Stairs.Cancelled")); return; }
+  if (choice.action === "other") return addStairsInteractive(scene, { entrance: { rect, levelId }, label: choice.label });
+
+  // The floor it was drawn on first, then the others from the bottom up.
+  const ticked = new Set([levelId, ...choice.floors]);
+  const order = [levelId, ...levels.map((l) => l._id).filter((id) => id !== levelId && ticked.has(id))];
+  if (order.length < 2) { ui.notifications.warn(t("DAT.Stairs.WellNeedTwo")); return; }
+  try {
+    const segments = order.map((id) => ({ x: rect.x, y: rect.y, width: rect.width, height: rect.height, levelId: id }));
+    const regions = await createLinkedStairs({ scene, mode: "stairs", label: choice.label, twoWay: true, segments });
+    ui.notifications.info(t("DAT.Stairs.WellPlaced", { label: choice.label, count: regions?.length ?? 0 }));
+  } catch (err) {
+    ui.notifications.error(t("DAT.Stairs.CreateFailed", { error: err.message }));
+    console.error(err);
+  }
+}
+
 /**
  * Add another floor to an EXISTING stair/portal link: the same guided placement
  * as a new stair, but seeded from the link (inherits its type/label, ghosts its
@@ -319,7 +482,7 @@ export async function addFloorToLink(scene = canvas?.scene, linkId) {
  * @param {boolean} [opts.twoWay=true]
  * @returns {Promise<void>}
  */
-export async function startLinkRegions(scene = canvas?.scene, { mode = "stairs", label = "Stairs", twoWay = true } = {}) {
+export async function startLinkRegions(scene = canvas?.scene, { mode = "stairs", label = t("DAT.Stairs.DefaultName"), twoWay = true } = {}) {
   if (!requireGM()) return;
   if (!scene) { ui.notifications.warn(t("DAT.Stairs.NoScene")); return; }
 

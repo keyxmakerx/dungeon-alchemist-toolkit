@@ -21,8 +21,20 @@ export const MEDIA_SIZE_WARN_BYTES = 50 * 1024 * 1024;
 
 /**
  * Flag key (under MODULE_ID) stamped on a Region that participates in a
- * stair/portal link: `{ linkId, label, mode, role }`. Lets the Stairs Manager
+ * stair/portal link: `{ linkId, label, mode, role }`. Lets the Level Manager
  * and the GM link overlay find and group linked portals without re-deriving
  * them from the native teleportToken destinations.
  */
 export const PORTAL_FLAG = "portal";
+
+/**
+ * Client-scoped setting: this person has been told that the Stairs Manager
+ * window is now the Level Manager's Stairs tab.
+ */
+export const SETTING_RETIRED_NOTE = "retiredNoteSeen";
+
+/**
+ * Scene flag set by the importer: the map still has floors nobody can reach,
+ * so the Level Manager shows what is left to do on it.
+ */
+export const TODO_FLAG = "todo";

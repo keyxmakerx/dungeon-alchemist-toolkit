@@ -1,19 +1,60 @@
 /**
- * Toolkit entry points — a GM-only Module Settings menu and a single safe toolbar
- * button, both opening the Level Manager dashboard.
+ * Where the toolkit opens from. Each entry sits where the thing it acts on is:
  *
- * Add ONE tool to an existing native control group, never a custom group:
- * custom scene-controls groups break native floor selection. The tool sits
- * behind a client setting (default on); the Settings menu and `DA` API always
- * work.
+ * - The import button beside Create Scene in the Scenes list, because it makes a scene.
+ * - "Floors and stairs" on a scene's right-click menu, because it is about that scene.
+ * - One toolbar button for the scene on the canvas, which can be switched off.
+ * - A Module Settings entry that always works.
+ *
+ * The toolbar gets ONE tool on an existing native group, never a group of its
+ * own: a custom scene-controls group breaks native floor selection.
+ *
+ * Every entry is for a GM only, and a failure to add one leaves it missing
+ * rather than breaking the sidebar.
  */
 
 import { MODULE_ID } from "./constants.js";
 import { DALevelManager } from "./dashboard.js";
+import { t } from "./util.js";
 
-/** Register the settings menu, the toolbar-button setting, and the toolbar tool. */
+const api = () => game.modules.get(MODULE_ID)?.api;
+
+/** Put the import button with the Scenes list's own Create buttons. */
+function addImportButton(app, html) {
+  if (!game.user?.isGM) return;
+  const root = html instanceof HTMLElement ? html : (html?.[0] ?? app?.element);
+  if (!(root instanceof HTMLElement) || root.querySelector(".da-import-scene")) return;
+  const create = root.querySelector('[data-action="createEntry"]') ?? root.querySelector(".create-entry, .create-document");
+  const holder = create?.parentElement ?? root.querySelector(".header-actions, .action-buttons");
+  if (!holder) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "da-import-scene";
+  button.textContent = t("DAT.Entry.ImportShort");
+  button.dataset.tooltip = t("DAT.Entry.Import");
+  button.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); api()?.Importer(); });
+  if (create?.nextSibling) holder.insertBefore(button, create.nextSibling);
+  else holder.appendChild(button);
+}
+
+/** Add "Floors and stairs" to a scene's right-click menu. */
+function addSceneMenuEntry(_app, entries) {
+  if (!Array.isArray(entries)) return;
+  entries.push({
+    label: t("DAT.Entry.FloorsAndStairs"),
+    icon: "",
+    visible: () => !!game.user?.isGM,
+    onClick: (_event, target) => {
+      const el = target instanceof HTMLElement ? target : target?.[0];
+      const row = el?.closest?.("[data-entry-id], [data-document-id], [data-scene-id]") ?? el;
+      const sceneId = row?.dataset?.entryId ?? row?.dataset?.documentId ?? row?.dataset?.sceneId;
+      if (sceneId) DALevelManager.open({ sceneId });
+    }
+  });
+}
+
+/** Register every way in. Called once at init. */
 export function registerToolkitEntries() {
-  // Client toggle so the toolbar button can be turned off.
   try {
     game.settings.register(MODULE_ID, "toolbarButton", {
       name: "DAT.Settings.ToolbarButton.Name",
@@ -22,13 +63,20 @@ export function registerToolkitEntries() {
       config: true,
       type: Boolean,
       default: true,
-      onChange: () => { try { ui.controls?.render?.(); } catch (_) { /* ignore */ } }
+      onChange: () => { try { ui.controls?.render?.(); } catch (_) { /* shows on the next redraw */ } }
+    });
+    game.settings.register(MODULE_ID, "dropImport", {
+      name: "DAT.Settings.DropImport.Name",
+      hint: "DAT.Settings.DropImport.Hint",
+      scope: "client",
+      config: true,
+      type: Boolean,
+      default: true
     });
   } catch (err) {
     console.warn("[DA Toolkit] settings registration failed (non-fatal):", err);
   }
 
-  // Reliable entry: a GM-only Module Settings menu button that opens the dashboard.
   try {
     game.settings.registerMenu(MODULE_ID, "openHub", {
       name: "DAT.Hub.Title",
@@ -42,7 +90,16 @@ export function registerToolkitEntries() {
     console.warn("[DA Toolkit] settings-menu registration failed (non-fatal):", err);
   }
 
-  // Single tool on an existing native group; any failure no-ops.
+  Hooks.on("renderSceneDirectory", (app, html) => {
+    try { addImportButton(app, html); }
+    catch (err) { console.warn("[DA Toolkit] Scenes list button not added (non-fatal):", err); }
+  });
+
+  Hooks.on("getSceneContextOptions", (app, entries) => {
+    try { addSceneMenuEntry(app, entries); }
+    catch (err) { console.warn("[DA Toolkit] scene menu entry not added (non-fatal):", err); }
+  });
+
   Hooks.on("getSceneControlButtons", (controls) => {
     try {
       if (!game.user?.isGM) return;

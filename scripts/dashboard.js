@@ -1,40 +1,114 @@
 /**
- * DA Level Manager — the toolkit's home dashboard (ApplicationV2).
+ * DA Level Manager — the toolkit's home window (ApplicationV2).
  *
- * Left: the scene's floors (native Scene Levels), top-floor first; click a floor
- * to view it. Right: the selected floor's details + the stairs/portals that
- * connect it. Built entirely on native data (`scene.levels`, portal-flagged
- * Regions) — no parallel data model.
+ * Floors tab: the building from the side. Floors are a stack, top floor first,
+ * and each stair is a bar beside the stack spanning the floors it joins, so a
+ * floor nobody can reach is visible at a glance. The selected floor's actions
+ * sit underneath and save as they are made.
+ *
+ * Stairs tab: the one list of every stair, teleport and trap on the scene.
+ *
+ * It manages the scene on the canvas, or a scene it was opened for from the
+ * Scenes list. Everything is read from native data (`scene.levels`,
+ * portal-flagged Regions); there is no second copy of it.
  */
 
-import { MODULE_ID } from "./constants.js";
+import { MODULE_ID, TODO_FLAG } from "./constants.js";
 import { requireGM, t } from "./util.js";
-import { getSceneLevels, getCurrentLevelId, viewLevel } from "./levels.js";
-import { getPortalLinkGroups, getScenePortals, deletePortalLink, bindPortals, regionCenter, regionLevelId, regionLevelIds, adoptLegacyRegion, LEGACY_LINK_PREFIX } from "./portal/portal-core.js";
+import { getSceneLevels, getCurrentLevelId, getInitialLevelId, viewLevel } from "./levels.js";
+import { getPortalLinkGroups, getScenePortals, getRegionBehaviors, deletePortalLink, bindPortals, regionCenter, regionLevelId, regionLevelIds, adoptLegacyRegion, LEGACY_LINK_PREFIX } from "./portal/portal-core.js";
 import { updateLevel, setStartLevel, moveLevel, openNativeLevels, replaceLevelImage, addLevel, removeLevel } from "./scene-levels-edit.js";
-import { buildThumb } from "./floor-rows.js";
+import { assignLanes, unreachableFloors, hasCrossFloorStairs } from "./building.js";
+import { safeDecode } from "./floor-grouping.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Friendly glyph per portal mode (matches MODE_PRESETS keys). */
-const STAIR_ICONS = { stairs: "🪜", teleport: "🌀", trap: "🕳️" };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/** The kind of a stair, in words. */
+function kindWord(mode) {
+  return t(`DAT.Stairs.Kind.${["stairs", "teleport", "trap"].includes(mode) ? mode : "stairs"}`);
+}
+
+/**
+ * Everything the window shows about one stair link.
+ *
+ * @param {string} linkId
+ * @param {{region:RegionDocument, portal:object, legacy?:boolean}[]} entries
+ * @param {object[]} levelsAsc  The scene's floors, bottom-first.
+ */
+function describeLink(linkId, entries, levelsAsc) {
+  const indexOf = (id) => levelsAsc.findIndex((l) => l._id === id);
+  const first = entries[0]?.portal ?? {};
+  const legacy = entries[0]?.legacy ?? false;
+  const mode = first.mode || "stairs";
+  // Entrance first, so a one-way stair reads in the direction it travels.
+  const ordered = entries.slice().sort((a, b) =>
+    Number(b.portal?.role === "entrance") - Number(a.portal?.role === "entrance"));
+  // A stair made with the old tool is one Region on several floors.
+  const solo = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
+  const ends = solo
+    ? regionLevelIds(entries[0].region).map((levelId) => ({ regionId: entries[0].region.id, levelId }))
+    : ordered.map((e) => ({ regionId: e.region.id, levelId: regionLevelId(e.region) }));
+  const floors = ends.map((e) => indexOf(e.levelId)).filter((i) => i >= 0);
+  // One-way when the far ends carry no way back (always so for a trap).
+  const oneWay = !legacy && (mode === "trap" || ordered.slice(1).some((e) =>
+    !getRegionBehaviors(e.region).some((b) => b?.type === "teleportToken")));
+  const from = floors[0] ?? -1;
+
+  const unique = [...new Set(floors)].sort((a, b) => a - b);
+  const name = (i) => levelsAsc[i]?.name || t("DAT.Dash.UnnamedFloor");
+  let where;
+  if (!unique.length) where = t("DAT.Dash.WhereGone");
+  else if (unique.length === 1) where = t("DAT.Dash.WhereSame", { floor: name(unique[0]) });
+  else if (unique.length === 2 && oneWay) {
+    const to = unique.find((i) => i !== from) ?? unique[1];
+    where = t("DAT.Dash.WhereOneWay", { from: name(from), to: name(to) });
+  } else if (unique.length === 2) where = t("DAT.Dash.WhereTwo", { a: name(unique[0]), b: name(unique[1]) });
+  else where = t("DAT.Dash.WhereMany", { a: name(unique[0]), b: name(unique[unique.length - 1]), count: unique.length });
+
+  const parts = [kindWord(mode), where];
+  if (legacy) parts.push(t("DAT.Dash.OldTool"));
+  return {
+    linkId,
+    label: first.label || kindWord(mode),
+    mode,
+    legacy,
+    oneWay,
+    from,
+    floors,
+    ends,
+    where: parts.join(" · "),
+    warn: !legacy && entries.length < 2 ? t("DAT.Dash.OneEndMissing") : ""
+  };
+}
 
 export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
-  /** Currently-selected floor `_id` (null → default to the viewed/bottom floor). */
+  /** Scene this window was opened for; null follows the scene on the canvas. */
+  _sceneId = null;
+  /** Currently-selected floor `_id` (null picks the viewed, then the lowest floor). */
   _selectedId = null;
-  /** Active tab: "floors" | "import" | "stairs". */
+  /** Active tab: "floors" | "stairs". */
   _tab = "floors";
+  /** True while the selected floor's name is being typed. */
+  _renaming = false;
+  /** Stair to point out on the Stairs tab after a bar was clicked. */
+  _focusLink = null;
+  /** Which end of each stair "Go to" visits next. */
+  _gotoNext = new Map();
+  /** Set while drawing: every floor is joined, so the "left to do" list can go. */
+  _todoDone = false;
 
   static DEFAULT_OPTIONS = {
     id: "da-level-manager",
     tag: "div",
     classes: ["da-level-manager-app"],
     window: { title: "DAT.Dash.Title", icon: "fa-solid fa-dungeon", resizable: true },
-    position: { width: 720, height: "auto" },
+    position: { width: 560, height: "auto" },
     actions: {
       switchTab: DALevelManager.#onSwitchTab,
       viewFloor: DALevelManager.#onViewFloor,
-      saveFloor: DALevelManager.#onSaveFloor,
+      renameFloor: DALevelManager.#onRenameFloor,
       setStart: DALevelManager.#onSetStart,
       moveUp: DALevelManager.#onMoveUp,
       moveDown: DALevelManager.#onMoveDown,
@@ -42,8 +116,12 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       addFloor: DALevelManager.#onAddFloor,
       removeFloor: DALevelManager.#onRemoveFloor,
       openNative: DALevelManager.#onOpenNative,
+      openScene: DALevelManager.#onOpenScene,
+      hideTodo: DALevelManager.#onHideTodo,
       importFolder: DALevelManager.#onImport,
       addStairs: DALevelManager.#onAddStairs,
+      addStairsHere: DALevelManager.#onAddStairsHere,
+      showStair: DALevelManager.#onShowStair,
       gotoStair: DALevelManager.#onGotoStair,
       editStair: DALevelManager.#onEditStair,
       addFloorStair: DALevelManager.#onAddFloorStair,
@@ -56,195 +134,257 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     body: { template: "modules/dungeon-alchemist-toolkit/templates/dashboard.hbs" }
   };
 
-  /** Open (or focus) the dashboard. GM-gated; single-instance. */
-  static open() {
+  /**
+   * Open (or bring forward) the Level Manager. GM only; one window.
+   *
+   * @param {object} [opts]
+   * @param {string|null} [opts.sceneId]  Manage this scene; omit to follow the canvas.
+   * @param {"floors"|"stairs"} [opts.tab]
+   */
+  static open({ sceneId = null, tab = null } = {}) {
     if (!requireGM()) return null;
     const existing = foundry.applications?.instances?.get("da-level-manager");
-    if (existing) { existing.bringToFront?.(); return existing; }
-    return new DALevelManager().render(true);
+    const app = existing ?? new DALevelManager();
+    // Opened for the scene already on the canvas is the same as following it.
+    app._sceneId = sceneId && sceneId !== canvas?.scene?.id ? sceneId : null;
+    if (tab === "floors" || tab === "stairs") app._tab = tab;
+    app._selectedId = existing && !sceneId ? app._selectedId : null;
+    app._renaming = false;
+    app.render(true);
+    if (existing) existing.bringToFront?.();
+    return app;
+  }
+
+  /** The scene being managed. */
+  get scene() {
+    return (this._sceneId && game.scenes?.get(this._sceneId)) || canvas?.scene || null;
+  }
+
+  /** Whether the managed scene is the one on the canvas. */
+  get isViewed() {
+    const scene = this.scene;
+    return !!scene && scene.id === canvas?.scene?.id;
+  }
+
+  /** @override */
+  get title() {
+    const scene = this.scene;
+    return scene ? t("DAT.Dash.TitleScene", { scene: scene.name }) : t("DAT.Dash.Title");
   }
 
   /** @override */
   async _prepareContext(_options) {
-    const scene = canvas?.scene;
-    if (!scene) return { hasScene: false };
+    const scene = this.scene;
+    if (!scene) return { hasScene: false, emptyText: t("DAT.Dash.NoScene") };
 
     const levelsAsc = getSceneLevels(scene);            // bottom-first
-    if (!levelsAsc.length) return { hasScene: false, sceneName: scene.name };
+    if (!levelsAsc.length) return { hasScene: false, emptyText: t("DAT.Dash.NoLevels", { name: scene.name }) };
+    const n = levelsAsc.length;
+    const isViewed = this.isViewed;
 
     const validIds = new Set(levelsAsc.map((l) => l._id));
-    let selectedId = this._selectedId && validIds.has(this._selectedId)
-      ? this._selectedId
-      : getCurrentLevelId(scene);
+    const viewedId = isViewed ? getCurrentLevelId(scene) : null;
+    let selectedId = this._selectedId && validIds.has(this._selectedId) ? this._selectedId : viewedId;
     if (!validIds.has(selectedId)) selectedId = levelsAsc[0]._id;
     this._selectedId = selectedId;
 
-    const startId = scene.initialLevel;
-    const levelName = (id) => levelsAsc.find((l) => l._id === id)?.name ?? "—";
+    const startId = getInitialLevelId(scene);
+    const startIndex = Math.max(0, levelsAsc.findIndex((l) => l._id === startId));
 
-    // Floors list, top-floor first for a building-like reading order.
-    const floors = levelsAsc.slice().reverse().map((l) => ({
-      id: l._id,
-      name: l.name || "Level",
-      bottom: l.elevation?.bottom ?? 0,
-      top: l.elevation?.top ?? 0,
-      src: l.background?.src ?? "",
-      start: l._id === startId,
-      active: l._id === selectedId
+    const links = [];
+    for (const [linkId, entries] of getPortalLinkGroups(scene)) links.push(describeLink(linkId, entries, levelsAsc));
+    links.sort((a, b) => a.label.localeCompare(b.label) || a.linkId.localeCompare(b.linkId));
+
+    const { placed, lanes, hidden } = assignLanes(links);
+    const cut = unreachableFloors(n, startIndex, links);
+    const joinedAtAll = hasCrossFloorStairs(links);
+    const hasBasement = levelsAsc.some((l) => (l.elevation?.bottom ?? 0) < 0);
+
+    // Grid rows count from the top, floors from the bottom.
+    const rowOf = (index) => n - index;
+    const runs = placed.map((p) => ({
+      linkId: p.linkId,
+      mode: ["stairs", "teleport", "trap"].includes(p.mode) ? p.mode : "stairs",
+      legacy: p.legacy,
+      col: p.lane + 1,
+      rowStart: rowOf(p.high),
+      rowEnd: rowOf(p.low) + 1,
+      tip: `${p.label}: ${p.where}`
     }));
 
-    // Stairs/portals connecting the selected floor.
-    const stairs = [];
-    for (const [linkId, entries] of getPortalLinkGroups(scene)) {
-      const legacy = entries[0]?.legacy ?? false;
-      // A flagged portal is single-level (levels:[id]); a legacy region can span
-      // several floors, so use its full level set to place + label it.
-      const soloMulti = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
-      const lids = soloMulti ? regionLevelIds(entries[0].region) : entries.map((e) => regionLevelId(e.region));
-      if (!lids.includes(selectedId)) continue;
-      const portal = entries[0]?.portal ?? {};
-      const mode = portal.mode || "stairs";
-      const partners = lids.filter((id) => id && id !== selectedId);
-      const sub = partners.length
-        ? `→ ${[...new Set(partners)].map(levelName).join(", ")}`
-        : t("DAT.Dash.SameFloor");
-      stairs.push({ linkId, label: portal.label || "Stairs", mode, icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs, sub, legacy });
-    }
-    stairs.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
-
-    // Every link across the scene, for the Stairs tab (link-aware, cross-floor).
-    const links = [];
-    for (const [linkId, entries] of getPortalLinkGroups(scene)) {
-      const first = entries[0]?.portal ?? {};
-      const legacy = entries[0]?.legacy ?? false;
-      const mode = first.mode || "stairs";
-      const soloMulti = entries.length === 1 && regionLevelIds(entries[0].region).length > 1;
-      const ends = soloMulti
-        ? regionLevelIds(entries[0].region).map((id) => ({ regionId: entries[0].region.id, levelName: levelName(id) }))
-        : entries.map((e) => ({ regionId: e.region.id, levelName: levelName(regionLevelId(e.region)) }));
-      links.push({
-        linkId,
-        label: first.label || "Stairs",
-        mode,
-        icon: STAIR_ICONS[mode] ?? STAIR_ICONS.stairs,
-        legacy,
-        ends: ends.map((x) => x.levelName).join(legacy ? ", " : " ⟷ "),
-        // A solo region has one Region doc, so collapse its per-floor "goto" buttons to one.
-        gotoEnds: (soloMulti ? [ends[0]] : ends).map((x) => ({ regionId: x.regionId, tip: t("DAT.Dash.GotoEnd", { floor: x.levelName }) }))
-      });
-    }
-    links.sort((a, b) => (a.label || "").localeCompare(b.label || "") || a.linkId.localeCompare(b.linkId));
+    const floors = levelsAsc.map((l, index) => {
+      const notes = [];
+      if (l._id === viewedId) notes.push(t("DAT.Dash.Viewing"));
+      if (l._id === startId) notes.push(t("DAT.Dash.StartFloor"));
+      return {
+        id: l._id,
+        name: l.name || t("DAT.Dash.UnnamedFloor"),
+        row: rowOf(index),
+        active: l._id === selectedId,
+        ground: hasBasement && (l.elevation?.bottom ?? 0) === 0,
+        notes,
+        warn: joinedAtAll && cut.has(index)
+          ? t(index > startIndex ? "DAT.Dash.NoWayUp" : "DAT.Dash.NoWayDown")
+          : ""
+      };
+    }).reverse();
 
     const sel = levelsAsc.find((l) => l._id === selectedId);
-    const selIdx = levelsAsc.findIndex((l) => l._id === selectedId);   // bottom-first index
-    const tab = this._tab || "floors";
+    const selIdx = levelsAsc.findIndex((l) => l._id === selectedId);
+    const here = links.filter((k) => k.floors.includes(selIdx)).map((k) => k.label);
+
+    let todo = null;
+    if (n > 1 && cut.size > 0 && scene.getFlag?.(MODULE_ID, TODO_FLAG)) {
+      todo = {
+        joined: t("DAT.Todo.Joined", { done: n - 1 - cut.size, total: n - 1 }),
+        startName: levelsAsc[startIndex]?.name || t("DAT.Dash.UnnamedFloor"),
+        addLabel: t(joinedAtAll ? "DAT.Todo.AddMore" : "DAT.Todo.AddFirst")
+      };
+    }
+    this._todoDone = n > 1 && cut.size === 0 && !!scene.getFlag?.(MODULE_ID, TODO_FLAG);
+
+    const tab = this._tab === "stairs" ? "stairs" : "floors";
     return {
       hasScene: true,
-      sceneName: scene.name,
-      floorCount: levelsAsc.length,
-      tab,
+      isViewed,
       isFloors: tab === "floors",
-      isImport: tab === "import",
       isStairs: tab === "stairs",
+      renaming: this._renaming,
+      lanes,
+      runs,
       floors,
-      links,
+      hiddenRuns: hidden ? t("DAT.Dash.MoreStairs", { count: hidden }) : "",
+      notJoined: n > 1 && !joinedAtAll,
+      todo,
+      links: links.map((k) => ({ ...k, focus: k.linkId === this._focusLink })),
       selected: {
-        name: sel?.name || "Level",
+        name: sel?.name || t("DAT.Dash.UnnamedFloor"),
         bottom: sel?.elevation?.bottom ?? 0,
         top: sel?.elevation?.top ?? 0,
         start: selectedId === startId,
-        canUp: selIdx < levelsAsc.length - 1,    // a floor sits above it
-        canDown: selIdx > 0,                      // a floor sits below it
-        stairs
+        canUp: selIdx < n - 1,
+        canDown: selIdx > 0,
+        stairsLine: here.length ? t("DAT.Dash.OnThisFloor", { stairs: here.join(", ") }) : t("DAT.Dash.NoStairs")
       }
     };
   }
 
-  /** Inject floor thumbnails (built in JS so video floors get a real <video>). */
+  /** @override */
   _onRender(_context, _options) {
-    for (const el of this.element.querySelectorAll(".da-floor-thumb[data-src]")) {
-      const src = el.dataset.src;
-      el.replaceChildren();
-      if (src) el.appendChild(buildThumb(src, "da-floor-thumb-media", { animate: false }));
+    // The frame is drawn once, so a change of scene has to rewrite the title.
+    try { if (this.window?.title) this.window.title.textContent = this.title; } catch (_) { /* keep the old title */ }
+
+    const root = this.element;
+    const rename = root.querySelector(".da-rename");
+    if (rename) {
+      let cancelled = false;
+      rename.focus();
+      rename.select();
+      rename.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); rename.blur(); }
+        if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); cancelled = true; this._renaming = false; this.render(); }
+      });
+      rename.addEventListener("blur", async () => {
+        if (cancelled || !this._renaming) return;
+        this._renaming = false;
+        await updateLevel(this.scene, this._selectedId, { name: rename.value });
+        this.render();
+      });
+    }
+
+    for (const sel of [".da-edit-bottom", ".da-edit-top"]) {
+      root.querySelector(sel)?.addEventListener("change", () => this._commitHeights());
+    }
+
+    if (this._focusLink) {
+      try { root.querySelector(".da-link.is-focus")?.scrollIntoView({ block: "nearest" }); } catch (_) { /* not worth an error */ }
+    }
+
+    // Every floor is joined, so the list has done its job.
+    if (this._todoDone && game.user?.isGM) {
+      this._todoDone = false;
+      this.scene?.unsetFlag?.(MODULE_ID, TODO_FLAG)?.catch?.(() => {});
     }
   }
 
-  /** Pause any thumbnail videos so closing doesn't leave decoders running. */
-  async _onClose(options) {
-    try {
-      for (const v of this.element?.querySelectorAll("video") ?? []) {
-        v.pause(); v.removeAttribute("src"); v.load();
-      }
-    } catch (_) { /* ignore */ }
-    return super._onClose(options);
+  /**
+   * Save the selected floor's heights as typed. A range that runs backwards is
+   * refused with a message and the fields go back to the saved values.
+   */
+  async _commitHeights() {
+    const scene = this.scene;
+    const id = this._selectedId;
+    if (!scene || !id || !this.element) return;
+    const bottom = parseFloat(this.element.querySelector(".da-edit-bottom")?.value ?? "");
+    const top = parseFloat(this.element.querySelector(".da-edit-top")?.value ?? "");
+    if (!Number.isFinite(bottom) || !Number.isFinite(top)) return;
+    if (bottom >= top) {
+      ui.notifications?.warn?.(t("DAT.Dash.BadElevation"));
+      this.render();
+      return;
+    }
+    await updateLevel(scene, id, { bottom, top });
+  }
+
+  /** Put the managed scene on the canvas if it is not there already. */
+  async _ensureViewed() {
+    const scene = this.scene;
+    if (!scene) return false;
+    if (scene.id === canvas?.scene?.id) return true;
+    try { await scene.view(); } catch (err) {
+      ui.notifications?.error?.(t("DAT.Dash.OpenFailed", { error: err.message }));
+      return false;
+    }
+    return scene.id === canvas?.scene?.id;
   }
 
   static async #onViewFloor(_event, target) {
     const id = target?.dataset?.levelId;
     if (!id) return;
     this._selectedId = id;
-    try { await viewLevel(id); } catch (_) { /* non-fatal */ }
+    this._renaming = false;
+    if (this.isViewed) { try { await viewLevel(id); } catch (_) { /* the floor is still selected */ } }
     this.render();
   }
 
-  /**
-   * Flush the floor-editor inputs (name + elevation) for the selected floor to the
-   * scene. Used by Save and as a pre-flush before the ★/move actions so an
-   * in-progress edit is never lost. `updateLevel` skips empty/invalid fields and
-   * no-ops when nothing changed, so calling this unconditionally is safe; all level
-   * writes are serialized in scene-levels-edit.js, so the pre-flush always lands
-   * before the action that follows it.
-   * @returns {Promise<void>}
-   */
-  async _commitEdits() {
-    const scene = canvas?.scene;
-    const id = this._selectedId;
-    if (!scene || !id || !this.element) return;
-    const name = this.element.querySelector(".da-edit-name")?.value;
-    const bottom = parseFloat(this.element.querySelector(".da-edit-bottom")?.value ?? "");
-    const top = parseFloat(this.element.querySelector(".da-edit-top")?.value ?? "");
-    // A reversed range is reported but not fatal — the name still commits and the
-    // bad elevation is dropped by updateLevel; the next render restores the field.
-    if (Number.isFinite(bottom) && Number.isFinite(top) && bottom >= top) {
-      ui.notifications?.warn?.(t("DAT.Dash.BadElevation"));
-    }
-    await updateLevel(scene, id, { name, bottom, top });
-  }
-
-  static async #onSaveFloor() {
-    await this._commitEdits();
+  static #onRenameFloor() {
+    this._renaming = true;
     this.render();
   }
 
   static async #onSetStart() {
-    const scene = canvas?.scene;
-    if (!scene || !this._selectedId) return;
-    await this._commitEdits();
-    await setStartLevel(scene, this._selectedId);
+    if (!this.scene || !this._selectedId) return;
+    await setStartLevel(this.scene, this._selectedId);
     this.render();
   }
 
   static async #onMoveUp() {
-    const scene = canvas?.scene;
-    if (!scene || !this._selectedId) return;
-    await this._commitEdits();
-    await moveLevel(scene, this._selectedId, +1);
+    if (!this.scene || !this._selectedId) return;
+    await moveLevel(this.scene, this._selectedId, +1);
     this.render();
   }
 
   static async #onMoveDown() {
-    const scene = canvas?.scene;
-    if (!scene || !this._selectedId) return;
-    await this._commitEdits();
-    await moveLevel(scene, this._selectedId, -1);
+    if (!this.scene || !this._selectedId) return;
+    await moveLevel(this.scene, this._selectedId, -1);
     this.render();
   }
 
-  static #onOpenNative() { openNativeLevels(canvas?.scene); }
+  static #onOpenNative() { openNativeLevels(this.scene); }
 
-  /** Swap the selected floor's map image via a media picker (keeps stairs/tokens/lights). */
+  static async #onOpenScene() {
+    await this._ensureViewed();
+    this.render();
+  }
+
+  static async #onHideTodo() {
+    try { await this.scene?.unsetFlag?.(MODULE_ID, TODO_FLAG); } catch (_) { /* the list just stays */ }
+    this.render();
+  }
+
+  /** Swap the selected floor's map image; its stairs, tokens and lights stay. */
   static #onReplaceImage() {
-    const scene = canvas?.scene;
+    const scene = this.scene;
     const id = this._selectedId;
     if (!scene || !id) return;
     const FilePicker = foundry.applications.apps?.FilePicker?.implementation;
@@ -257,12 +397,12 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if (path) { await replaceLevelImage(scene, id, path); this.render(); }
       }
     });
-    picker.browse(current).catch(() => { /* cancelled — ignore */ });
+    picker.browse(current).catch(() => { /* closed without a pick */ });
   }
 
-  /** Add a new floor from a picked media file; select it once created. */
+  /** Add a new floor from a picked image or video, and select it. */
   static #onAddFloor() {
-    const scene = canvas?.scene;
+    const scene = this.scene;
     if (!scene) return;
     const FilePicker = foundry.applications.apps?.FilePicker?.implementation;
     if (!FilePicker) { ui.notifications?.warn?.(t("DAT.Dash.NoPicker")); return; }
@@ -270,23 +410,22 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       type: "imagevideo",
       current: "",
       callback: async (path) => {
-        if (!path) return;   // dialog closed/cancelled with no pick — don't append a blank floor
-        const name = decodeURIComponent(path.split("/").pop().replace(/\.[^.]+$/, ""));
+        if (!path) return;   // closed without a pick: no empty floor
+        const name = safeDecode(path.split("/").pop().replace(/\.[^.]+$/, ""));
         const newId = await addLevel(scene, { src: path, name });
         if (newId) this._selectedId = newId;
         this.render();
       }
     });
-    picker.browse("").catch(() => { /* cancelled — ignore */ });
+    picker.browse("").catch(() => { /* closed without a pick */ });
   }
 
-  /** Remove the selected floor after a confirm that spells out the non-cascade caveat. */
+  /** Remove the selected floor after a confirm that says what stays behind. */
   static async #onRemoveFloor() {
-    const scene = canvas?.scene;
+    const scene = this.scene;
     const id = this._selectedId;
     if (!scene || !id) return;
-    const name = getSceneLevels(scene).find((l) => l._id === id)?.name || "this floor";
-    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const name = getSceneLevels(scene).find((l) => l._id === id)?.name || t("DAT.Dash.UnnamedFloor");
     const DialogV2 = foundry.applications.api?.DialogV2;
     let ok = true;
     if (typeof DialogV2?.confirm === "function") {
@@ -299,7 +438,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (!ok) return;
     await removeLevel(scene, id);
-    this._selectedId = null;   // force re-resolve to a surviving floor on next render
+    this._selectedId = null;   // pick a surviving floor on the next draw
     this.render();
   }
 
@@ -307,53 +446,66 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const tab = target?.dataset?.tab;
     if (!tab || tab === this._tab) return;
     this._tab = tab;
+    this._focusLink = null;
+    this._renaming = false;
     this.render();
   }
 
-  /** Select & pan to a portal end (and best-effort switch to its level). */
+  /** A bar in the side view was clicked: show that stair in the list. */
+  static #onShowStair(_event, target) {
+    this._focusLink = target?.dataset?.linkId ?? null;
+    this._tab = "stairs";
+    this.render();
+  }
+
+  /** Show one end of a stair on the map; each press visits the next end. */
   static async #onGotoStair(_event, target) {
-    const scene = canvas?.scene;
-    const region = scene?.regions?.get(target?.dataset?.regionId);
-    if (!region) { ui.notifications?.warn?.(t("DAT.Stairs.GoneRegion")); return; }
-    try { await viewLevel(regionLevelId(region)); } catch (_) { /* non-fatal */ }
+    const linkId = target?.dataset?.linkId;
+    const scene = this.scene;
+    const entries = getPortalLinkGroups(scene).get(linkId) ?? [];
+    if (!entries.length) { ui.notifications?.warn?.(t("DAT.Stairs.GoneLink")); return; }
+    if (!(await this._ensureViewed())) return;
+    const turn = this._gotoNext.get(linkId) ?? 0;
+    this._gotoNext.set(linkId, turn + 1);
+    const region = entries[turn % entries.length].region;
+    const levelIds = regionLevelIds(region);
+    const levelId = levelIds.length > 1 ? levelIds[Math.floor(turn / entries.length) % levelIds.length] : regionLevelId(region);
+    try { await viewLevel(levelId); } catch (_) { /* still pan to it */ }
     const c = regionCenter(region);
     if (c && typeof canvas?.animatePan === "function") canvas.animatePan({ x: c.x, y: c.y, duration: 250 });
-    try { canvas?.regions?.activate?.(); } catch (_) { /* non-fatal */ }
-    try { region.object?.control?.({ releaseOthers: true }); } catch (_) { /* non-fatal */ }
+    try { canvas?.regions?.activate?.(); } catch (_) { /* the pan is enough */ }
+    try { region.object?.control?.({ releaseOthers: true }); } catch (_) { /* the pan is enough */ }
   }
 
   /**
-   * Link-aware editor: rename the whole link, change its type/two-way, or fall back
-   * to the native region sheet for shape/elevation — writing through the shared
-   * bindPortals path so both ends stay consistent.
+   * Edit a whole stair at once: its name, its kind, whether it leads back, and
+   * what each end is called. Written through the shared bindPortals path so
+   * every end stays in step.
    */
   static async #onEditStair(_event, target) {
     const linkId = target?.dataset?.linkId;
-    const scene = canvas?.scene;
+    const scene = this.scene;
     const entries = getScenePortals(scene).filter((e) => e.portal?.linkId === linkId);
     if (!entries.length) { ui.notifications?.warn?.(t("DAT.Stairs.GoneLink")); return; }
     const entrance = entries.find((e) => e.portal?.role === "entrance") ?? entries[0];
     const others = entries.filter((e) => e !== entrance);
     const regions = [entrance.region, ...others.map((e) => e.region)];
 
-    // A single-region group can't be re-linked (bindPortals needs two ends), so
-    // fall back to the region's native sheet instead of throwing on save.
+    // A stair with one end has nothing to join, so Foundry's own sheet edits it.
     if (regions.length < 2) { entrance.region.sheet?.render(true); return; }
 
     const cur = entrance.portal ?? {};
     const curMode = cur.mode || "stairs";
-    const curLabel = cur.label || "Stairs";
+    const curLabel = cur.label || kindWord(curMode);
     const curTwoWay = others.length
-      ? others.every((e) => (e.region.behaviors?.contents ?? Array.from(e.region.behaviors ?? [])).some((b) => b.type === "teleportToken"))
+      ? others.every((e) => getRegionBehaviors(e.region).some((b) => b.type === "teleportToken"))
       : (curMode !== "trap");
 
-    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const modeOpts = ["stairs", "teleport", "trap"]
-      .map((m) => `<option value="${m}"${m === curMode ? " selected" : ""}>${m}</option>`).join("");
-    // Per-stop name editor: each region's NAME is what players read in the "which
-    // floor?" picker. List one input per end, prefixed by its floor for context.
+      .map((m) => `<option value="${m}"${m === curMode ? " selected" : ""}>${esc(t(`DAT.Stairs.KindLong.${m}`))}</option>`).join("");
+    // Each end's name is what players read when asked which floor to go to.
     const levels = getSceneLevels(scene);
-    const lvName = (id) => levels.find((l) => l._id === id)?.name ?? "Floor";
+    const lvName = (id) => levels.find((l) => l._id === id)?.name ?? t("DAT.Dash.UnnamedFloor");
     const stopRows = regions.map((r) => {
       const id = r.id ?? r._id;
       const floor = lvName(regionLevelId(r));
@@ -362,13 +514,13 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }).join("");
     const content = `
       <div class="da-stairs-opts">
-        <div class="form-group"><label>Label (the stair's name)</label>
+        <div class="form-group"><label>${esc(t("DAT.Stairs.FieldName"))}</label>
           <input type="text" name="label" value="${esc(curLabel)}" /></div>
-        <div class="form-group"><label>Type</label>
+        <div class="form-group"><label>${esc(t("DAT.Stairs.FieldKind"))}</label>
           <select name="mode">${modeOpts}</select></div>
         <label class="da-stairs-opts-check">
-          <input type="checkbox" name="twoWay"${curTwoWay ? " checked" : ""} /> Two-way (destinations link back)</label>
-        <p class="hint" style="margin:0.4rem 0 0.15rem;">Floor names — what players see in the "which floor?" prompt:</p>
+          <input type="checkbox" name="twoWay"${curTwoWay ? " checked" : ""} /> ${esc(t("DAT.Stairs.FieldTwoWay"))}</label>
+        <p class="hint">${esc(t("DAT.Stairs.FieldStops"))}</p>
         <div class="da-stairs-stops">${stopRows}</div>
       </div>`;
 
@@ -377,7 +529,7 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
       content,
       buttons: [
         {
-          action: "save", label: t("DAT.Stairs.BtnSave"), icon: "fas fa-check", default: true,
+          action: "save", label: t("DAT.Stairs.BtnSave"), default: true,
           callback: (_e, btn) => {
             const f = btn?.form;
             const names = {};
@@ -388,15 +540,15 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
             }
             return {
               action: "save",
-              label: f?.elements?.label?.value?.trim() || "Stairs",
+              label: f?.elements?.label?.value?.trim() || curLabel,
               mode: f?.elements?.mode?.value || "stairs",
               twoWay: f?.elements?.twoWay?.checked ?? true,
               names
             };
           }
         },
-        { action: "sheet", label: t("DAT.Stairs.BtnSheet"), icon: "fas fa-pen-to-square", callback: () => ({ action: "sheet" }) },
-        { action: "cancel", label: t("DAT.Stairs.BtnCancel"), icon: "fas fa-xmark", callback: () => ({ action: "cancel" }) }
+        { action: "sheet", label: t("DAT.Stairs.BtnSheet"), callback: () => ({ action: "sheet" }) },
+        { action: "cancel", label: t("DAT.Stairs.BtnCancel"), callback: () => ({ action: "cancel" }) }
       ],
       rejectClose: false
     }).catch(() => null);
@@ -405,12 +557,10 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (choice.action === "sheet") { entrance.region.sheet?.render(true); return; }
     try {
       await bindPortals({ regions, mode: choice.mode, label: choice.label, twoWay: choice.twoWay });
-      // Apply the per-stop name edits (the picker reads region.name). Only write a
-      // changed name so we don't churn unchanged regions.
       for (const r of regions) {
         const id = r.id ?? r._id;
         const nm = choice.names?.[id];
-        if (nm && nm !== r.name) { try { await r.update({ name: nm }); } catch (_) { /* non-fatal */ } }
+        if (nm && nm !== r.name) { try { await r.update({ name: nm }); } catch (_) { /* the rest still saved */ } }
       }
       ui.notifications?.info?.(t("DAT.Stairs.Updated"));
     } catch (err) {
@@ -420,20 +570,20 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Add another floor to this stair link (guided placement on the canvas). */
+  /** Add another floor to this stair, placed on the map. */
   static async #onAddFloorStair(_event, target) {
     const linkId = target?.dataset?.linkId;
     if (!linkId) return;
+    if (!(await this._ensureViewed())) return;
     try { await game.modules.get(MODULE_ID).api.AddFloorToLink(linkId); }
     catch (err) { ui.notifications?.error?.(t("DAT.Stairs.CreateFailed", { error: err.message })); console.error(err); }
     this.render();
   }
 
-  /** Adopt a legacy (unflagged) region as a managed portal, then re-render. */
+  /** Take a stair made with the old tool into the list as a managed stair. */
   static async #onAdoptStair(_event, target) {
-    const scene = canvas?.scene;
     try {
-      await adoptLegacyRegion(scene, target?.dataset?.linkId);
+      await adoptLegacyRegion(this.scene, target?.dataset?.linkId);
       ui.notifications?.info?.(t("DAT.Stairs.Adopted"));
     } catch (err) {
       ui.notifications?.error?.(t("DAT.Stairs.AdoptFailed", { error: err.message }));
@@ -442,22 +592,19 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Delete a link's ends — or a single legacy region — with confirm. */
+  /** Delete every end of a stair, after a confirm. */
   static async #onRemoveStair(_event, target) {
     const linkId = target?.dataset?.linkId;
-    const scene = canvas?.scene;
     const isLegacy = typeof linkId === "string" && linkId.startsWith(LEGACY_LINK_PREFIX);
     const ok = await foundry.applications.api.DialogV2.confirm({
       window: { title: t("DAT.Stairs.DeleteTitle") },
-      content: isLegacy
-        ? "<p>Delete this <strong>legacy region</strong> from the scene?</p>"
-        : "<p>Delete <strong>both ends</strong> of this stair / portal link?</p>",
+      content: `<p>${esc(t(isLegacy ? "DAT.Stairs.DeleteOld" : "DAT.Stairs.DeleteAll"))}</p>`,
       rejectClose: false,
       modal: true
     }).catch(() => false);
     if (!ok) return;
     try {
-      await deletePortalLink(scene, linkId);
+      await deletePortalLink(this.scene, linkId);
       ui.notifications?.info?.(t("DAT.Stairs.Deleted"));
     } catch (err) {
       ui.notifications?.error?.(t("DAT.Stairs.DeleteFailed", { error: err.message }));
@@ -466,8 +613,18 @@ export class DALevelManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  // TODO(keyxmakerx/dungeon-alchemist-toolkit#13): fold the standalone importer
-  // window into this tab. Add Stairs runs the on-canvas guided placement.
   static #onImport() { game.modules.get(MODULE_ID).api.Importer(); }
-  static #onAddStairs() { game.modules.get(MODULE_ID).api.AddStairs(); }
+
+  /** Add a stair anywhere: the scene has to be on the canvas to place it. */
+  static async #onAddStairs() {
+    if (!(await this._ensureViewed())) return;
+    game.modules.get(MODULE_ID).api.AddStairs();
+  }
+
+  /** Add a stair starting on the selected floor. */
+  static async #onAddStairsHere() {
+    if (!(await this._ensureViewed())) return;
+    if (this._selectedId) { try { await viewLevel(this._selectedId); } catch (_) { /* place on the viewed floor */ } }
+    game.modules.get(MODULE_ID).api.AddStairs();
+  }
 }

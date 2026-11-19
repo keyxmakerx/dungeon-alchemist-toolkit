@@ -1,9 +1,7 @@
 /**
- * Canvas rectangle picker shared by the legacy region tool and the stairs/portal
- * wizard. Lets the user click (drops a 1-grid square) or drag (sweeps a
- * rectangle) to place a region footprint, with a live preview; Escape — or an
- * external AbortSignal — cancels. `region-adder.js` re-exports it for backward
- * compatibility.
+ * Canvas rectangle picker for placing a stair. Lets the user click (drops a
+ * 1-grid square) or drag (sweeps a rectangle) to place a region footprint, with
+ * a live preview; Escape — or an external AbortSignal — cancels.
  */
 
 /** Guards against two concurrent canvas placements double-binding listeners. */

@@ -1,121 +1,117 @@
-<div class="da-dash">
+<div class="da-lm">
   {{#if hasScene}}
-  <div class="da-dash-top">
-    <span class="da-dash-scene">{{localize "DAT.Dash.Scene"}}: <b>{{sceneName}}</b> · {{floorCount}} {{localize "DAT.Dash.Floors"}}</span>
-  </div>
-
-  <nav class="da-dash-tabs">
-    <button type="button" class="da-dash-tab{{#if isFloors}} active{{/if}}" data-action="switchTab" data-tab="floors"><i class="fa-solid fa-layer-group"></i> {{localize "DAT.Dash.TabFloors"}}</button>
-    <button type="button" class="da-dash-tab{{#if isImport}} active{{/if}}" data-action="switchTab" data-tab="import"><i class="fa-solid fa-file-import"></i> {{localize "DAT.Dash.TabImport"}}</button>
-    <button type="button" class="da-dash-tab{{#if isStairs}} active{{/if}}" data-action="switchTab" data-tab="stairs"><i class="fa-solid fa-stairs"></i> {{localize "DAT.Dash.TabStairs"}}</button>
+  <nav class="da-tabs" role="tablist" aria-label="{{localize "DAT.Dash.TabsAria"}}">
+    <button type="button" role="tab" class="da-tab" aria-selected="{{#if isFloors}}true{{else}}false{{/if}}" data-action="switchTab" data-tab="floors">{{localize "DAT.Dash.TabFloors"}}</button>
+    <button type="button" role="tab" class="da-tab" aria-selected="{{#if isStairs}}true{{else}}false{{/if}}" data-action="switchTab" data-tab="stairs">{{localize "DAT.Dash.TabStairs"}}</button>
   </nav>
 
+  {{#unless isViewed}}
+  <p class="da-note da-muted">{{localize "DAT.Dash.NotOpen"}} <button type="button" class="da-quiet" data-action="openScene">{{localize "DAT.Dash.OpenScene"}}</button></p>
+  {{/unless}}
+
   {{#if isFloors}}
-  <div class="da-dash-body">
-    <div class="da-dash-floors">
-      <div class="da-dash-hd">{{localize "DAT.Dash.FloorsHd"}}</div>
-      {{#each floors}}
-      <div class="da-floor-row{{#if this.active}} active{{/if}}" data-action="viewFloor" data-level-id="{{this.id}}">
-        <span class="da-floor-thumb" data-src="{{this.src}}"></span>
-        <div class="da-floor-meta">
-          <div class="da-floor-name">{{this.name}}{{#if this.start}} <span class="da-star">★</span>{{/if}}</div>
-          <div class="da-floor-elev">{{localize "DAT.Dash.Elev"}} {{this.bottom}}–{{this.top}}{{#if this.active}} · {{localize "DAT.Dash.Viewing"}}{{/if}}</div>
-        </div>
-      </div>
-      {{/each}}
-      <button type="button" class="da-floor-add" data-action="addFloor" data-tooltip="{{localize "DAT.Dash.AddFloorHint"}}"><i class="fa-solid fa-plus"></i> {{localize "DAT.Dash.AddFloor"}}</button>
+  {{#if todo}}
+  <section class="da-todo" aria-labelledby="da-todo-hd">
+    <h3 class="da-hd" id="da-todo-hd">{{localize "DAT.Todo.Title"}}</h3>
+    <div class="da-todo-item"><b>{{localize "DAT.Todo.Join"}}</b><span class="da-muted">{{todo.joined}}</span></div>
+    <div class="da-todo-item"><b>{{localize "DAT.Todo.Start"}}</b><span class="da-muted">{{todo.startName}}</span></div>
+    <div class="da-row">
+      <button type="button" class="da-primary" data-action="addStairsHere">{{todo.addLabel}}</button>
+      <button type="button" class="da-quiet" data-action="hideTodo">{{localize "DAT.Todo.Hide"}}</button>
     </div>
-    <div class="da-dash-detail">
-      <div class="da-floor-edit">
-        <div class="da-edit-row">
-          <input type="text" class="da-edit-name" value="{{selected.name}}" placeholder="{{localize "DAT.Dash.NamePlaceholder"}}" />
-          <button type="button" class="da-edit-star{{#if selected.start}} is-start{{/if}}" data-action="setStart" data-tooltip="{{localize "DAT.Dash.SetStartHint"}}">{{#if selected.start}}★{{else}}☆{{/if}}</button>
-        </div>
-        <div class="da-edit-row">
-          <label class="da-edit-lbl">{{localize "DAT.Dash.Elev"}}</label>
-          <input type="number" class="da-edit-bottom" value="{{selected.bottom}}" step="1" />
-          <span class="da-edit-dash">–</span>
-          <input type="number" class="da-edit-top" value="{{selected.top}}" step="1" />
-          <span class="da-dash-spacer"></span>
-          <button type="button" class="da-edit-move" data-action="moveDown" data-tooltip="{{localize "DAT.Dash.MoveDown"}}"{{#unless selected.canDown}} disabled{{/unless}}><i class="fa-solid fa-arrow-down"></i></button>
-          <button type="button" class="da-edit-move" data-action="moveUp" data-tooltip="{{localize "DAT.Dash.MoveUp"}}"{{#unless selected.canUp}} disabled{{/unless}}><i class="fa-solid fa-arrow-up"></i></button>
-        </div>
-        <div class="da-edit-row da-edit-actions">
-          <button type="button" class="da-dash-btn" data-action="saveFloor"><i class="fa-solid fa-check"></i> {{localize "DAT.Dash.SaveFloor"}}</button>
-          <button type="button" class="da-dash-btn" data-action="replaceImage" data-tooltip="{{localize "DAT.Dash.ReplaceImageHint"}}"><i class="fa-solid fa-image"></i> {{localize "DAT.Dash.ReplaceImage"}}</button>
-          <span class="da-dash-spacer"></span>
-          <button type="button" class="da-edit-danger" data-action="removeFloor" data-tooltip="{{localize "DAT.Dash.RemoveFloorHint"}}"><i class="fa-solid fa-trash"></i> {{localize "DAT.Dash.RemoveFloor"}}</button>
-        </div>
-        <div class="da-edit-row da-edit-actions">
-          <span class="da-dash-spacer"></span>
-          <button type="button" class="da-edit-link" data-action="openNative" data-tooltip="{{localize "DAT.Dash.OpenNativeHint"}}">{{localize "DAT.Dash.OpenNative"}}</button>
-        </div>
-      </div>
-      <div class="da-dash-hd">{{localize "DAT.Dash.StairsHd"}}</div>
-      {{#if selected.stairs.length}}
-        {{#each selected.stairs}}
-        <div class="da-dash-stair">
-          <span class="da-dash-stair-ic da-stairs-mode--{{this.mode}}">{{this.icon}}</span>
-          <div class="da-dash-stair-text">
-            <span class="da-dash-stair-label">{{this.label}}</span>
-            <span class="da-stairs-mode da-stairs-mode--{{this.mode}}">{{this.mode}}</span>
-            <div class="da-dash-stair-sub">{{this.sub}}</div>
-          </div>
-        </div>
-        {{/each}}
+  </section>
+  {{/if}}
+
+  <div class="da-stack" style="--da-lanes: {{lanes}}">
+    {{#each runs}}
+    <button type="button" class="da-run da-run--{{this.mode}}{{#if this.legacy}} da-run--old{{/if}}" style="grid-column: {{this.col}}; grid-row: {{this.rowStart}} / {{this.rowEnd}}" data-action="showStair" data-link-id="{{this.linkId}}" data-tooltip="{{this.tip}}" aria-label="{{this.tip}}"></button>
+    {{/each}}
+    {{#each floors}}
+    <button type="button" class="da-slab{{#if this.active}} is-selected{{/if}}{{#if this.ground}} is-ground{{/if}}" style="grid-row: {{this.row}}" data-action="viewFloor" data-level-id="{{this.id}}" aria-pressed="{{#if this.active}}true{{else}}false{{/if}}">
+      <b class="da-slab-name">{{this.name}}</b>
+      <span class="da-slab-note">{{#if this.warn}}<span class="da-warn">{{this.warn}}</span>{{/if}}{{#each this.notes}}<span>{{this}}</span>{{/each}}</span>
+    </button>
+    {{/each}}
+  </div>
+  {{#if hiddenRuns}}<p class="da-muted da-small">{{hiddenRuns}}</p>{{/if}}
+  {{#if notJoined}}<p class="da-warn da-small">{{localize "DAT.Dash.NotJoined"}}</p>{{/if}}
+
+  <section class="da-floor" aria-label="{{selected.name}}">
+    <div class="da-row">
+      {{#if renaming}}
+      <input type="text" class="da-rename" value="{{selected.name}}" aria-label="{{localize "DAT.Dash.NamePlaceholder"}}" />
       {{else}}
-        <p class="da-dash-empty">{{localize "DAT.Dash.NoStairs"}}</p>
+      <h3 class="da-hd">{{selected.name}}</h3>
+      <button type="button" data-action="renameFloor">{{localize "DAT.Dash.Rename"}}</button>
       {{/if}}
+      <button type="button" data-action="replaceImage" data-tooltip="{{localize "DAT.Dash.ReplaceImageHint"}}">{{localize "DAT.Dash.ReplaceImage"}}</button>
+      <button type="button" class="da-danger" data-action="removeFloor">{{localize "DAT.Dash.RemoveFloor"}}</button>
     </div>
+    <div class="da-row">
+      <span class="da-height">
+        <label for="da-edit-bottom">{{localize "DAT.Dash.Height"}}</label>
+        <input type="number" id="da-edit-bottom" class="da-edit-bottom" value="{{selected.bottom}}" step="1" />
+        <label for="da-edit-top">{{localize "DAT.Dash.HeightTo"}}</label>
+        <input type="number" id="da-edit-top" class="da-edit-top" value="{{selected.top}}" step="1" />
+      </span>
+      <span class="da-sp"></span>
+      {{#if selected.start}}
+      <span class="da-muted">{{localize "DAT.Dash.IsStart"}}</span>
+      {{else}}
+      <button type="button" class="da-quiet" data-action="setStart" data-tooltip="{{localize "DAT.Dash.SetStartHint"}}">{{localize "DAT.Dash.SetStart"}}</button>
+      {{/if}}
+      <button type="button" class="da-quiet" data-action="moveUp"{{#unless selected.canUp}} disabled{{/unless}}>{{localize "DAT.Dash.MoveUp"}}</button>
+      <button type="button" class="da-quiet" data-action="moveDown"{{#unless selected.canDown}} disabled{{/unless}}>{{localize "DAT.Dash.MoveDown"}}</button>
+    </div>
+    <div class="da-row">
+      <span class="da-muted da-grow">{{selected.stairsLine}}</span>
+      <button type="button"{{#unless todo}} class="da-primary"{{/unless}} data-action="addStairsHere">{{localize "DAT.Dash.AddStairsHere"}}</button>
+    </div>
+  </section>
+
+  <div class="da-row da-row--foot">
+    <button type="button" class="da-quiet" data-action="addFloor" data-tooltip="{{localize "DAT.Dash.AddFloorHint"}}">{{localize "DAT.Dash.AddFloor"}}</button>
+    <span class="da-sp"></span>
+    <button type="button" class="da-quiet" data-action="openNative" data-tooltip="{{localize "DAT.Dash.OpenNativeHint"}}">{{localize "DAT.Dash.OpenNative"}}</button>
   </div>
   {{/if}}
 
   {{#if isStairs}}
-  <div class="da-dash-panel">
-    <div class="da-dash-stairs-hd">
-      <span class="da-dash-hd">{{localize "DAT.Dash.AllStairsHd"}}</span>
-      <span class="da-dash-spacer"></span>
-      <button type="button" class="da-dash-btn" data-action="addStairs"><i class="fa-solid fa-plus"></i> {{localize "DAT.Controls.AddStairs"}}</button>
-    </div>
-    {{#if links.length}}
-      {{#each links}}
-      <div class="da-link-row">
-        <span class="da-dash-stair-ic da-stairs-mode--{{this.mode}}">{{this.icon}}</span>
-        <div class="da-link-text">
-          <span class="da-dash-stair-label">{{this.label}}</span>
-          <span class="da-stairs-mode da-stairs-mode--{{this.mode}}">{{this.mode}}</span>
-          {{#if this.legacy}}<span class="da-stairs-mode da-stairs-mode--legacy">{{localize "DAT.Dash.LegacyBadge"}}</span>{{/if}}
-          <div class="da-dash-stair-sub">{{this.ends}}</div>
-        </div>
-        <div class="da-link-actions">
-          {{#each this.gotoEnds}}
-          <button type="button" class="da-link-btn" data-action="gotoStair" data-region-id="{{this.regionId}}" data-tooltip="{{this.tip}}"><i class="fa-solid fa-location-crosshairs"></i></button>
-          {{/each}}
-          {{#if this.legacy}}
-          <button type="button" class="da-link-btn" data-action="adoptStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AdoptStair"}}"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
-          {{else}}
-          <button type="button" class="da-link-btn" data-action="addFloorStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AddFloorStair"}}"><i class="fa-solid fa-layer-group"></i></button>
-          <button type="button" class="da-link-btn" data-action="editStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.EditStair"}}"><i class="fa-solid fa-pen"></i></button>
-          {{/if}}
-          <button type="button" class="da-link-btn da-link-btn--danger" data-action="removeStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.RemoveStair"}}"><i class="fa-solid fa-trash"></i></button>
-        </div>
+  <div class="da-row">
+    <h3 class="da-hd da-grow">{{localize "DAT.Dash.AllStairsHd"}}</h3>
+    <button type="button" class="da-primary" data-action="addStairs">{{localize "DAT.Dash.AddStairs"}}</button>
+  </div>
+  {{#if links.length}}
+  <ul class="da-links">
+    {{#each links}}
+    <li class="da-link{{#if this.focus}} is-focus{{/if}}" data-link-id="{{this.linkId}}">
+      <div class="da-link-text">
+        <b>{{this.label}}</b>
+        <span class="da-muted">{{this.where}}</span>
+        {{#if this.warn}}<span class="da-warn">{{this.warn}}</span>{{/if}}
       </div>
-      {{/each}}
-    {{else}}
-      <p class="da-dash-empty">{{localize "DAT.Dash.NoStairsAll"}}</p>
-    {{/if}}
-  </div>
+      <div class="da-link-actions">
+        <button type="button" class="da-quiet" data-action="gotoStair" data-link-id="{{this.linkId}}">{{localize "DAT.Dash.GoTo"}}</button>
+        {{#if this.legacy}}
+        <button type="button" class="da-quiet" data-action="adoptStair" data-link-id="{{this.linkId}}" data-tooltip="{{localize "DAT.Dash.AdoptStair"}}">{{localize "DAT.Dash.Adopt"}}</button>
+        {{else}}
+        <button type="button" class="da-quiet" data-action="editStair" data-link-id="{{this.linkId}}">{{localize "DAT.Dash.Edit"}}</button>
+        <button type="button" class="da-quiet" data-action="addFloorStair" data-link-id="{{this.linkId}}">{{localize "DAT.Dash.AddFloorStair"}}</button>
+        {{/if}}
+        <button type="button" class="da-quiet da-danger" data-action="removeStair" data-link-id="{{this.linkId}}">{{localize "DAT.Dash.Delete"}}</button>
+      </div>
+    </li>
+    {{/each}}
+  </ul>
+  {{else}}
+  <p class="da-muted">{{localize "DAT.Dash.NoStairsAll"}}</p>
   {{/if}}
-
-  {{#if isImport}}
-  <div class="da-dash-panel da-dash-import-tab">
-    <p class="da-dash-import-intro">{{localize "DAT.Dash.ImportIntro"}}</p>
-    <button type="button" class="da-dash-btn da-dash-import-go" data-action="importFolder"><i class="fa-solid fa-folder-open"></i> {{localize "DAT.Dash.ImportOpen"}}</button>
-    <p class="hint">{{localize "DAT.Dash.ImportTabNote"}}</p>
-  </div>
   {{/if}}
 
   {{else}}
-  <p class="da-dash-empty">{{localize "DAT.Dash.NoScene"}}</p>
+  <p class="da-muted">{{emptyText}}</p>
+  <div class="da-row">
+    <button type="button" class="da-primary" data-action="importFolder">{{localize "DAT.Entry.Import"}}</button>
+  </div>
   {{/if}}
 </div>

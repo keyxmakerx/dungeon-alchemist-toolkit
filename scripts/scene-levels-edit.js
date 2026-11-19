@@ -1,25 +1,25 @@
 /**
- * Native Scene-Level write helpers for dashboard floor editing.
+ * Native Scene-Level write helpers for Level Manager floor editing.
  *
- * Every edit writes the COMPLETE levels array via `scene.update({ levels })`
- * with only the target fields changed, so a wholesale replace never drops a
- * floor. Each write is read back and warns if the count or any `_id` drifted.
+ * A Level is an embedded Scene document on v14, so each edit is an embedded
+ * create / update / delete naming only the floor it touches. Every other floor
+ * is left alone and keeps its `_id`.
  *
- * Only native LevelData fields (`name`, `elevation`, `sort`) and the Scene's
- * `initialLevel` are written. Deletion and cross-level visibility stay in
- * Foundry's Levels tab (`openNativeLevels`), which handles their cascades.
+ * Only native LevelData fields (`name`, `elevation`, `sort`, `background.src`)
+ * and the Scene's `initialLevel` are written. Cross-level visibility stays in
+ * Foundry's Levels tab (`openNativeLevels`).
  *
- * Regions bind to a floor by level `_id` (`regionLevelId`), so rename,
- * re-elevate and reorder keep stairs attached.
+ * Regions, walls and lights bind to a floor by level `_id`, so rename,
+ * re-elevate and reorder keep them attached.
  */
 
-import { getSceneLevels } from "./levels.js";
-import { requireGM } from "./util.js";
+import { getSceneLevels, getInitialLevelId } from "./levels.js";
+import { requireGM, t } from "./util.js";
 
 /**
- * Serializes level-array writes: each task reads the full array, so without
- * ordering a later stale read (blur-commit then button action) clobbers the
- * earlier write.
+ * Serializes level writes: each task reads the current levels before it
+ * writes, so without ordering a later stale read (blur-commit then button
+ * action) would act on the wrong elevations.
  * @type {Promise<unknown>}
  */
 let _writeChain = Promise.resolve();
@@ -43,39 +43,76 @@ function levelToObject(level) {
 }
 
 /**
- * Commit a complete levels array and verify it round-tripped. Must be called from
- * inside an `enqueue`d task (it reads + writes without its own locking).
+ * Whether this scene keeps its levels as embedded Level documents (v14). A
+ * build that does not gets the whole-array write instead.
+ * @param {Scene} scene
+ * @returns {boolean}
+ */
+function hasEmbeddedLevels(scene) {
+  try {
+    if (scene?.constructor?.metadata?.embedded?.Level) return true;
+    return scene?.levels?.documentClass?.documentName === "Level";
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Whole-array fallback for a build without embedded Level documents: write
+ * every floor back with only the target fields changed, then warn if the count
+ * or any `_id` drifted.
  *
  * @param {Scene} scene
  * @param {object[]} nextLevels  The complete array (every floor, plain objects).
- * @param {string} context       Short label for diagnostics.
- * @param {object} [extra]       Extra fields to merge into the same `scene.update`
- *   (e.g. a reassigned `initialLevel`), so they commit atomically with the levels.
- * @returns {Promise<boolean>}   true if the write was applied (verification only warns).
+ * @param {object} [extra]       Extra Scene fields for the same update.
  */
-async function writeAndVerify(scene, nextLevels, context, extra = {}) {
-  const sentIds = new Set(nextLevels.map((l) => l._id));
+async function writeLevelsArray(scene, nextLevels, extra = {}) {
+  await scene.update({ levels: nextLevels, ...extra });
+  const afterIds = new Set(getSceneLevels(scene).map((l) => l._id));
+  const drifted = afterIds.size !== nextLevels.length || nextLevels.some((l) => !afterIds.has(l._id));
+  if (drifted) ui.notifications?.warn?.(t("DAT.Dash.UpdateDrift"));
+}
+
+/**
+ * Run one level write and report a failure as a toast instead of a rejection.
+ *
+ * @param {string} context                Short label for the console.
+ * @param {() => Promise<T>} write
+ * @returns {Promise<T|false>}            The write's result, or false if it threw.
+ * @template T
+ */
+async function attempt(context, write) {
   try {
-    await scene.update({ levels: nextLevels, ...extra });
+    return await write();
   } catch (err) {
-    console.error(`[DA Toolkit] scene.update(levels) failed (${context}):`, err);
-    ui.notifications?.error?.(`Floor update failed: ${err.message}`);
+    console.error(`[DA Toolkit] level write failed (${context}):`, err);
+    ui.notifications?.error?.(t("DAT.Dash.UpdateFailed", { error: err.message }));
     return false;
   }
-  // Compare against the SENT set (not the prior set) so add/remove verify too.
-  const after = getSceneLevels(scene);
-  const afterIds = new Set(after.map((l) => l._id));
-  if (after.length !== nextLevels.length) {
-    console.debug(`[DA Toolkit] level count drift after ${context}: sent ${nextLevels.length}, got ${after.length}`, { after });
-    ui.notifications?.warn?.("Floor update may not have applied cleanly — check the Levels tab.");
-  } else {
-    const missing = [...sentIds].filter((id) => !afterIds.has(id));
-    if (missing.length) {
-      console.debug(`[DA Toolkit] level id drift after ${context}: missing ${missing.join(", ")}`, { after });
-      ui.notifications?.warn?.("A floor's id changed during the update — check that stairs still connect.");
+}
+
+/**
+ * Apply per-floor changes (each `{_id, ...changed fields}`).
+ *
+ * @param {Scene} scene
+ * @param {object[]} changes
+ * @param {string} context
+ * @returns {Promise<boolean>}
+ */
+function updateLevels(scene, changes, context) {
+  return attempt(context, async () => {
+    if (hasEmbeddedLevels(scene)) {
+      await scene.updateEmbeddedDocuments("Level", changes);
+      return true;
     }
-  }
-  return true;
+    const byId = new Map(changes.map((c) => [c._id, c]));
+    const next = getSceneLevels(scene).map(levelToObject).map((l) => {
+      const c = byId.get(l._id);
+      return c ? foundry.utils.mergeObject(l, c, { inplace: false }) : l;
+    });
+    await writeLevelsArray(scene, next);
+    return true;
+  });
 }
 
 /**
@@ -93,26 +130,23 @@ export function updateLevel(scene, levelId, patch = {}) {
   return enqueue(async () => {
     if (!requireGM()) return false;
     if (!scene || !levelId) return false;
-    const levels = getSceneLevels(scene).map(levelToObject);
-    const target = levels.find((l) => l._id === levelId);
+    const target = getSceneLevels(scene).find((l) => l._id === levelId);
     if (!target) return false;
 
-    let changed = false;
+    const change = { _id: levelId };
     if (typeof patch.name === "string" && patch.name.trim() && patch.name.trim() !== target.name) {
-      target.name = patch.name.trim();
-      changed = true;
+      change.name = patch.name.trim();
     }
     // Only apply a fully-numeric, well-ordered elevation (bottom < top); a bad
-    // range is ignored here (the dashboard warns the user separately).
+    // range is ignored here (the Level Manager warns the user separately).
     if (Number.isFinite(patch.bottom) && Number.isFinite(patch.top) && patch.bottom < patch.top) {
       const cur = target.elevation ?? {};
       if (patch.bottom !== cur.bottom || patch.top !== cur.top) {
-        target.elevation = { ...cur, bottom: patch.bottom, top: patch.top };
-        changed = true;
+        change.elevation = { bottom: patch.bottom, top: patch.top };
       }
     }
-    if (!changed) return true;     // idempotent — nothing to write
-    return writeAndVerify(scene, levels, `updateLevel ${levelId}`);
+    if (Object.keys(change).length === 1) return true;     // idempotent — nothing to write
+    return updateLevels(scene, [change], `updateLevel ${levelId}`);
   });
 }
 
@@ -138,15 +172,16 @@ export function moveLevel(scene, levelId, dir) {
     if (j < 0 || j >= ascending.length) return false;             // already at an end
 
     const a = ascending[i], b = ascending[j];
-    [a.elevation, b.elevation] = [b.elevation, a.elevation];      // trade bands
-    [a.sort, b.sort] = [b.sort, a.sort];                          // keep sort consistent
-    return writeAndVerify(scene, ascending, `moveLevel ${levelId} ${dir}`);
+    const band = (l) => ({ bottom: l.elevation?.bottom ?? 0, top: l.elevation?.top ?? 0 });
+    return updateLevels(scene, [
+      { _id: a._id, elevation: band(b), sort: b.sort ?? j },
+      { _id: b._id, elevation: band(a), sort: a.sort ?? i }
+    ], `moveLevel ${levelId} ${dir}`);
   });
 }
 
 /**
  * Set which floor is shown when the scene loads (native Scene `initialLevel`).
- * A separate field from the levels array, so it never collides with a level edit.
  *
  * @param {Scene} scene
  * @param {string} levelId
@@ -157,15 +192,11 @@ export function setStartLevel(scene, levelId) {
     if (!requireGM()) return false;
     if (!scene || !levelId) return false;
     if (!getSceneLevels(scene).some((l) => l._id === levelId)) return false;
-    if (scene.initialLevel === levelId) return true;             // idempotent
-    try {
+    if (getInitialLevelId(scene) === levelId) return true;       // idempotent
+    return attempt("setStartLevel", async () => {
       await scene.update({ initialLevel: levelId });
       return true;
-    } catch (err) {
-      console.error("[DA Toolkit] setStartLevel failed:", err);
-      ui.notifications?.error?.(`Couldn't set the start floor: ${err.message}`);
-      return false;
-    }
+    });
   });
 }
 
@@ -184,11 +215,8 @@ export function replaceLevelImage(scene, levelId, src) {
   return enqueue(async () => {
     if (!requireGM()) return false;
     if (!scene || !levelId || !src) return false;
-    const levels = getSceneLevels(scene).map(levelToObject);
-    const target = levels.find((l) => l._id === levelId);
-    if (!target) return false;
-    target.background = { ...(target.background ?? {}), src };
-    return writeAndVerify(scene, levels, `replaceLevelImage ${levelId}`);
+    if (!getSceneLevels(scene).some((l) => l._id === levelId)) return false;
+    return updateLevels(scene, [{ _id: levelId, background: { src } }], `replaceLevelImage ${levelId}`);
   });
 }
 
@@ -210,20 +238,25 @@ export function addLevel(scene, { name, src, height = 10 } = {}) {
     const bottom = levels.length ? prevTop + 1 : 0;
     const h = Number.isFinite(height) && height >= 1 ? height : 10;
     const newLevel = {
-      _id: foundry.utils.randomID(),
       name: name?.trim() || `Floor ${levels.length}`,
       elevation: { bottom, top: bottom + h },
       background: { src: src || null, color: sample?.background?.color ?? null, tint: "#ffffff", alphaThreshold: 0.75 },
       foreground: { src: null, tint: "#ffffff", alphaThreshold: 0.75 },
-      fog: { src: null, tint: "#ffffff" },
+      fog: { src: null },
       textures: { anchorX: 0.5, anchorY: 0.5, fit: "fill", scaleX: 1, scaleY: 1 },
       visibility: { levels: [] },
       sort: levels.length,
       flags: {}
     };
-    levels.push(newLevel);
-    const ok = await writeAndVerify(scene, levels, "addLevel");
-    return ok ? newLevel._id : false;
+    return attempt("addLevel", async () => {
+      if (hasEmbeddedLevels(scene)) {
+        const created = await scene.createEmbeddedDocuments("Level", [newLevel]);
+        return created?.[0]?.id ?? false;
+      }
+      const withId = { _id: foundry.utils.randomID(), ...newLevel };
+      await writeLevelsArray(scene, [...levels, withId]);
+      return withId._id;
+    });
   });
 }
 
@@ -231,7 +264,7 @@ export function addLevel(scene, { name, src, height = 10 } = {}) {
  * Remove a floor from the scene. Refuses to remove the last remaining floor. Note
  * this only drops the level entry (its background image); tokens/lights/walls/regions
  * the GM placed on that floor remain in the scene and may need manual cleanup — the
- * dashboard warns about this before calling.
+ * Level Manager warns about this before calling.
  *
  * @param {Scene} scene
  * @param {string} levelId
@@ -243,23 +276,31 @@ export function removeLevel(scene, levelId) {
     if (!scene || !levelId) return false;
     const levels = getSceneLevels(scene).map(levelToObject);
     if (levels.length <= 1) {
-      ui.notifications?.warn?.("A scene must keep at least one floor.");
+      ui.notifications?.warn?.(t("DAT.Dash.LastFloor"));
       return false;
     }
     const next = levels.filter((l) => l._id !== levelId);
     if (next.length === levels.length) return false;   // id not found
-    // The start floor (scene.initialLevel) must always point at a surviving
-    // level; if we just removed it, hand the role to the new bottom floor in
-    // this same update so the scene is never left pointing at a deleted id.
-    const extra = scene.initialLevel === levelId ? { initialLevel: next[0]._id } : {};
-    return writeAndVerify(scene, next, `removeLevel ${levelId}`, extra);
+    // The start floor must always point at a surviving level. Hand the role to
+    // the new bottom floor before the delete, so the scene is never left
+    // pointing at a deleted id.
+    const extra = getInitialLevelId(scene) === levelId ? { initialLevel: next[0]._id } : {};
+    return attempt(`removeLevel ${levelId}`, async () => {
+      if (hasEmbeddedLevels(scene)) {
+        if (extra.initialLevel) await scene.update(extra);
+        await scene.deleteEmbeddedDocuments("Level", [levelId]);
+        return true;
+      }
+      await writeLevelsArray(scene, next, extra);
+      return true;
+    });
   });
 }
 
 /**
  * Escape hatch: open the scene's native config sheet (where the Levels tab handles
- * cross-level visibility and floor deletion). Best-effort tab switch; falls back to
- * the sheet's default tab if the running build doesn't expose `changeTab`.
+ * cross-level visibility). Best-effort tab switch; falls back to the sheet's
+ * default tab if the running build doesn't expose `changeTab`.
  *
  * @param {Scene} scene
  */
